@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "s3peek"
+version = "0.1.0"
+description = "Terminal-first S3 browser for scientists and data engineers"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12",
+    "textual>=0.60",
+    "boto3>=1.34",
+    "astropy>=6.0",
+    "asdf>=3.0",
+    "pyarrow>=15.0",
+    "pyperclip>=1.8",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+qr = ["qrcode>=7.0"]
+astro = ["asdf-astropy>=0.6"]
+roman = ["roman_datamodels>=2.0,<3"]
+firefly = ["firefly_client @ git+https://github.com/caltech-ipac/firefly_client.git@master"]
+dev = [
+    "moto[s3]>=5.0",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "boto3-stubs[s3]>=1.34",
+]
+
+[project.scripts]
+s3peek = "s3peek.cli:app"
+
+[project.entry-points."s3peek.readers"]
+fits    = "s3peek.readers.fits:FITSReader"
+asdf    = "s3peek.readers.asdf:ASDFReader"
+parquet = "s3peek.readers.parquet:ParquetReader"
+json    = "s3peek.readers.json:JSONReader"
+
+[project.entry-points."s3peek.themes"]
+dark  = "s3peek.themes.dark:DarkTheme"
+light = "s3peek.themes.light:LightTheme"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["firefly_client", "tomli"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
