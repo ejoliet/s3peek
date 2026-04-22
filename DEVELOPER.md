@@ -5,6 +5,20 @@
 - Python 3.11+
 - One of: `uv` (recommended), `pip` + `venv`, or `conda`
 
+### What's in each install extra
+
+| Extra | Packages installed |
+|-------|--------------------|
+| _(none)_ | Runtime only: `typer`, `textual`, `boto3`, `astropy`, `asdf`, `pyarrow`, `pyperclip`, `pydantic` |
+| `[dev]` | Everything above **plus** `pytest`, `pytest-cov`, `moto[s3]`, `ruff`, `mypy`, `boto3-stubs[s3]` |
+| `[firefly]` | `firefly_client` from `caltech-ipac/firefly_client` |
+| `[roman]` | `roman_datamodels>=2.0,<3` |
+| `[astro]` | `asdf-astropy` |
+| `[qr]` | `qrcode` |
+
+> `moto[s3]` is the AWS mock library used by the test suite — it intercepts all `boto3` calls so tests never touch real AWS.  
+> `pytest` and `pytest-cov` are the test runner and coverage reporter.
+
 ---
 
 ## Setup with uv (recommended)
