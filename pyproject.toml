@@ -44,7 +44,7 @@ dependencies = [
 qr = ["qrcode>=7.0"]
 astro = ["asdf-astropy>=0.6"]
 roman = ["roman_datamodels>=2.0,<3"]
-firefly = ["firefly_client @ git+https://github.com/caltech-ipac/firefly_client.git@master"]
+firefly = ["firefly_client>=3.4.0"]
 dev = [
     "moto[s3]>=5.0",
     "pytest>=8.0",

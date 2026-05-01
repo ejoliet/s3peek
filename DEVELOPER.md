@@ -11,7 +11,7 @@
 |-------|--------------------|
 | _(none)_ | Runtime only: `typer`, `textual`, `boto3`, `astropy`, `asdf`, `pyarrow`, `pyperclip`, `pydantic` |
 | `[dev]` | Everything above **plus** `pytest`, `pytest-cov`, `moto[s3]`, `ruff`, `mypy`, `boto3-stubs[s3]` |
-| `[firefly]` | `firefly_client` from `caltech-ipac/firefly_client` |
+| `[firefly]` | `firefly_client>=3.4.0` (PyPI) — [caltech-ipac/firefly_client](https://github.com/caltech-ipac/firefly_client) |
 | `[roman]` | `roman_datamodels>=2.0,<3` |
 | `[astro]` | `asdf-astropy` |
 | `[qr]` | `qrcode` |
