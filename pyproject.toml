@@ -7,8 +7,7 @@ name = "s3peek"
 version = "0.1.0"
 description = "Terminal-first S3 browser for scientists and data engineers"
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = {text = "MIT"}
 authors = [
     { name = "Ejoliet", email = "ejoliet@users.noreply.github.com" },
 ]
@@ -24,11 +23,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Development Status :: 3 - Alpha",
 ]
-
-[project.urls]
-Homepage = "https://github.com/ejoliet/s3peek"
-Issues = "https://github.com/ejoliet/s3peek/issues"
-Changelog = "https://github.com/ejoliet/s3peek/blob/main/CHANGELOG.md"
 dependencies = [
     "typer>=0.12",
     "textual>=0.60",
@@ -39,6 +33,11 @@ dependencies = [
     "pyperclip>=1.8",
     "pydantic>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ejoliet/s3peek"
+Issues = "https://github.com/ejoliet/s3peek/issues"
+Changelog = "https://github.com/ejoliet/s3peek/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 qr = ["qrcode>=7.0"]
