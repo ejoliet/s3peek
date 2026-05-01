@@ -42,7 +42,7 @@ Changelog = "https://github.com/ejoliet/s3peek/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 qr = ["qrcode>=7.0"]
 astro = ["asdf-astropy>=0.6"]
-roman = ["roman_datamodels>=2.0,<3"]
+roman = ["roman_datamodels>=0.19.0"]
 firefly = ["firefly_client>=3.4.0"]
 dev = [
     "moto[s3]>=5.0",
