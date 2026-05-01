@@ -193,3 +193,63 @@ python -m pytest tests/test_plugins.py -v
 1. Fork the repo and create a branch: `git checkout -b feat/my-feature`
 2. Make changes, ensure `make lint && make test` passes
 3. Open a pull request against `main`
+
+---
+
+## Building and publishing to PyPI
+
+### Manual release (local)
+
+```bash
+# Install build tools
+pip install build twine
+
+# Build sdist + wheel into dist/
+python -m build
+
+# Inspect what will be uploaded
+twine check dist/*
+
+# Upload to TestPyPI first (recommended before a real release)
+twine upload --repository testpypi dist/*
+pip install --index-url https://test.pypi.org/simple/ s3peek
+
+# Upload to PyPI
+twine upload dist/*
+```
+
+With `uv` (no separate `twine` needed):
+
+```bash
+uv build                        # creates dist/
+uv publish --token $PYPI_TOKEN  # or configure keyring
+```
+
+### Automated release via GitHub Actions
+
+The `.github/workflows/release.yml` workflow triggers on any tag matching `v*`
+and publishes to PyPI using **OIDC trusted publishing** — no stored API tokens
+needed.
+
+**One-time setup on PyPI:**
+
+1. Go to your PyPI project → *Manage* → *Publishing*
+2. Add a trusted publisher:
+   - Owner: `ejoliet`
+   - Repository: `s3peek`
+   - Workflow: `release.yml`
+   - Environment: `pypi`
+3. Create the `pypi` environment in GitHub repo settings (*Settings → Environments*)
+
+**Cutting a release:**
+
+```bash
+# Bump version in pyproject.toml and src/s3peek/__init__.py, then:
+git add pyproject.toml src/s3peek/__init__.py CHANGELOG.md
+git commit -m "chore: release v0.2.0"
+git tag v0.2.0
+git push origin main --tags
+```
+
+The workflow builds the package and calls `pypa/gh-action-pypi-publish` with
+OIDC — no `PYPI_TOKEN` secret required once trusted publishing is configured.
