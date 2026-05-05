@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+
 from s3peek.readers import HeaderResult
 
 
@@ -11,4 +13,11 @@ class ParquetReader:
         return first_bytes[:4] == b"PAR1" or key.lower().endswith(self.extensions)
 
     def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
-        raise NotImplementedError
+        import pyarrow.parquet as pq
+
+        try:
+            schema = pq.read_schema(io.BytesIO(data))
+            fields = {f.name: str(f.type) for f in schema}
+        except Exception:
+            fields = {"note": "schema in footer; file too large for range-get preview"}
+        return HeaderResult(format="parquet", headers=[fields])

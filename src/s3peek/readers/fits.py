@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+
 from s3peek.readers import HeaderResult
 
 
@@ -11,4 +13,8 @@ class FITSReader:
         return first_bytes[:9] == b"SIMPLE  =" or key.lower().endswith(self.extensions)
 
     def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
-        raise NotImplementedError
+        from astropy.io import fits
+
+        with fits.open(io.BytesIO(data), ignore_missing_simple=True) as hdus:
+            headers = [dict(hdu.header) for hdu in hdus[:max_headers]]
+        return HeaderResult(format="fits", headers=headers)
