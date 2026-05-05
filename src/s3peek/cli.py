@@ -9,6 +9,7 @@ import typer
 import s3peek
 from s3peek import plugins
 from s3peek.config import Config
+from s3peek.presign import copy_to_clipboard, generate_presigned_url, parse_expiry
 from s3peek.quicklook import quicklook
 from s3peek.s3 import S3Client, parse_s3_uri
 
@@ -68,7 +69,22 @@ def share(
     qr: Annotated[bool, typer.Option("--qr", help="Print QR code")] = False,
 ) -> None:
     """Generate a pre-signed URL and copy it to clipboard."""
-    raise NotImplementedError
+    bucket, key = parse_s3_uri(uri)
+    cfg = Config.load()
+    expiry_secs = parse_expiry(expiry)
+    url = generate_presigned_url(bucket, key, expiry_seconds=expiry_secs, profile=cfg.aws_profile)
+    try:
+        copy_to_clipboard(url)
+        typer.echo(f"Copied ({expiry}):")
+    except Exception:
+        pass
+    typer.echo(url)
+    if qr:
+        import qrcode  # type: ignore[import]
+        qr_obj = qrcode.QRCode()
+        qr_obj.add_data(url)
+        qr_obj.make(fit=True)
+        qr_obj.print_ascii()
 
 
 @app.command(name="ls")
