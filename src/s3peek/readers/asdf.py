@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+
 from s3peek.readers import HeaderResult
 
 
@@ -11,4 +13,8 @@ class ASDFReader:
         return first_bytes[:5] == b"#ASDF" or key.lower().endswith(self.extensions)
 
     def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
-        raise NotImplementedError
+        import asdf
+
+        with asdf.open(io.BytesIO(data)) as af:
+            tree = {k: str(v) for k, v in af.tree.items() if not k.startswith("asdf")}
+        return HeaderResult(format="asdf", headers=[tree])

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import fnmatch
+import json
 from typing import Annotated
 
 import typer
 
 import s3peek
 from s3peek import plugins
+from s3peek.config import Config
+from s3peek.quicklook import quicklook
+from s3peek.s3 import S3Client, parse_s3_uri
 
 app = typer.Typer(name="s3peek", help="Terminal-first S3 browser for scientists.")
 
@@ -39,7 +44,21 @@ def peek(
     max_hdus: Annotated[int, typer.Option("--max-hdus", help="Max HDUs to show")] = 1,
 ) -> None:
     """Inspect headers of a single S3 object."""
-    raise NotImplementedError
+    bucket, key = parse_s3_uri(uri)
+    cfg = Config.load()
+    client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
+    meta = client.stat_object(bucket, key)
+    data = client.range_get(bucket, key, length=cfg.max_range_get_bytes)
+    result = quicklook(data, key, max_headers=max_hdus)
+    if output == "json":
+        typer.echo(json.dumps({"format": result.format, "size": meta.size, "headers": result.headers}))
+    else:
+        typer.echo(f"Format: {result.format}  Size: {meta.size}  s3://{bucket}/{key}")
+        for i, hdr in enumerate(result.headers):
+            if len(result.headers) > 1:
+                typer.echo(f"--- HDU {i} ---")
+            for k, v in hdr.items():
+                typer.echo(f"  {k}: {v}")
 
 
 @app.command()
@@ -60,7 +79,26 @@ def ls_command(
     output: Annotated[str, typer.Option("--output", "-o")] = "text",
 ) -> None:
     """List objects under an S3 prefix."""
-    raise NotImplementedError
+    bucket, prefix = parse_s3_uri(uri)
+    cfg = Config.load()
+    items = S3Client(profile=cfg.aws_profile, region=cfg.aws_region).list_prefix(
+        bucket, prefix, delimiter=""
+    )
+    if filter_glob:
+        items = [i for i in items if fnmatch.fnmatch(i.key, filter_glob)]
+    sort_key = {"size": lambda x: x.size, "date": lambda x: x.last_modified}.get(
+        sort, lambda x: x.key
+    )
+    items.sort(key=sort_key)
+    if output == "json":
+        typer.echo(
+            json.dumps(
+                [{"key": i.key, "size": i.size, "last_modified": i.last_modified.isoformat()} for i in items]
+            )
+        )
+    else:
+        for i in items:
+            typer.echo(f"{i.size:>12}  {i.last_modified:%Y-%m-%d %H:%M}  s3://{bucket}/{i.key}")
 
 
 @app.command()
@@ -69,7 +107,18 @@ def du(
     human_readable: Annotated[bool, typer.Option("--human-readable", "-h")] = True,
 ) -> None:
     """Summarize storage usage under an S3 prefix."""
-    raise NotImplementedError
+    bucket, prefix = parse_s3_uri(uri)
+    cfg = Config.load()
+    result = S3Client(profile=cfg.aws_profile, region=cfg.aws_region).sum_prefix_sizes(bucket, prefix)
+    size, count = result["total_bytes"], result["count"]
+    if human_readable:
+        for unit in ("B", "KB", "MB", "GB", "TB"):
+            if size < 1024 or unit == "TB":
+                break
+            size /= 1024
+        typer.echo(f"{size:.1f} {unit}  ({count} objects)  s3://{bucket}/{prefix}")
+    else:
+        typer.echo(f"{result['total_bytes']}\t{count}\ts3://{bucket}/{prefix}")
 
 
 @app.command()

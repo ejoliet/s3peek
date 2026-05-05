@@ -28,16 +28,18 @@ def test_firefly_help() -> None:
     assert "--preview" in result.output
 
 
-@pytest.mark.skip(reason="not yet implemented")
-def test_peek() -> None:
-    result = runner.invoke(app, ["peek", "s3://bucket/file.fits"])
-    assert result.exit_code == 0
+def test_peek_json(populated_bucket) -> None:  # type: ignore[misc]
+    result = runner.invoke(app, ["peek", "s3://test-bucket/data/sample.json"])
+    assert result.exit_code == 0, result.output
+    assert "json" in result.output
+    assert "hello" in result.output
 
 
-@pytest.mark.skip(reason="not yet implemented")
-def test_ls() -> None:
-    result = runner.invoke(app, ["ls", "s3://bucket/"])
-    assert result.exit_code == 0
+def test_ls(populated_bucket) -> None:  # type: ignore[misc]
+    result = runner.invoke(app, ["ls", "s3://test-bucket/data/"])
+    assert result.exit_code == 0, result.output
+    assert "sample.json" in result.output
+    assert "image.fits" in result.output
 
 
 @pytest.mark.skip(reason="not yet implemented")

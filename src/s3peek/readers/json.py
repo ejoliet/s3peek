@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from s3peek.readers import HeaderResult
 
 
@@ -11,4 +13,11 @@ class JSONReader:
         return key.lower().endswith(self.extensions)
 
     def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
-        raise NotImplementedError
+        obj = json.loads(data)
+        if isinstance(obj, dict):
+            hdr = {k: str(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            hdr = {"type": "array", "length": str(len(obj))}
+        else:
+            hdr = {"value": str(obj)}
+        return HeaderResult(format="json", headers=[hdr])
