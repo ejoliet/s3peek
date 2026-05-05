@@ -146,4 +146,16 @@ def firefly(
     title: Annotated[str | None, typer.Option("--title", help="Display title")] = None,
 ) -> None:
     """Send an S3 object to a Firefly visualization server."""
-    raise NotImplementedError
+    from s3peek.firefly import FireflyConnector
+
+    bucket, key = parse_s3_uri(uri)
+    cfg = Config.load()
+    server_url = server or cfg.firefly_url
+    if not server_url:
+        typer.echo("Error: --server required or set firefly_url in config", err=True)
+        raise typer.Exit(1)
+    client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
+    data = client._s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+    fc = FireflyConnector(server_url, channel=channel or cfg.firefly_channel)
+    url = fc.send(data, key, preview=preview, title=title)
+    typer.echo(url)
