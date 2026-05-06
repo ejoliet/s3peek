@@ -142,6 +142,10 @@ def firefly(
     uri: Annotated[str, typer.Argument(help="S3 URI of the object to visualize.")],
     server: Annotated[str | None, typer.Option("--server", help="Firefly server URL")] = None,
     channel: Annotated[str | None, typer.Option("--channel", help="Browser tab channel")] = None,
+    open_browser: Annotated[
+        bool,
+        typer.Option("--open-browser", help="Open Firefly in a browser tab"),
+    ] = False,
     preview: Annotated[bool, typer.Option("--preview", help="Show metadata picker first")] = False,
     title: Annotated[str | None, typer.Option("--title", help="Display title")] = None,
 ) -> None:
@@ -156,6 +160,10 @@ def firefly(
         raise typer.Exit(1)
     client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
     data = client._s3.get_object(Bucket=bucket, Key=key)["Body"].read()
-    fc = FireflyConnector(server_url, channel=channel or cfg.firefly_channel)
+    fc = FireflyConnector(
+        server_url,
+        channel=channel or cfg.firefly_channel,
+        launch_browser=open_browser,
+    )
     url = fc.send(data, key, preview=preview, title=title)
     typer.echo(url)

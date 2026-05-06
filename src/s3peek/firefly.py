@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from io import BytesIO
+from pathlib import PurePosixPath
+from tempfile import NamedTemporaryFile
 from typing import cast
-
-_FITS_MAGIC = b"SIMPLE  ="
-_FITS_EXTENSIONS = (".fits", ".fit", ".fz", ".fits.gz")
 
 
 class FireflyConnector:
-    def __init__(self, server_url: str, channel: str | None = None) -> None:
+    def __init__(
+        self,
+        server_url: str,
+        channel: str | None = None,
+        *,
+        launch_browser: bool = False,
+    ) -> None:
         try:
             from firefly_client import FireflyClient
         except ImportError as exc:
@@ -16,7 +20,11 @@ class FireflyConnector:
                 "Firefly integration requires firefly_client. "
                 "Run: pip install 's3peek[firefly]'"
             ) from exc
-        self.fc = FireflyClient.make_client(url=server_url, channel=channel)
+        self.fc = FireflyClient.make_client(
+            url=server_url,
+            channel_override=channel,
+            launch_browser=launch_browser,
+        )
 
     def send(
         self,
@@ -25,15 +33,16 @@ class FireflyConnector:
         *,
         preview: bool = False,
         title: str | None = None,
-        file_type: str = "auto",
     ) -> str:
         """Upload data to Firefly and display it. Returns the Firefly browser URL."""
-        is_fits = data[:9] == _FITS_MAGIC or key.lower().endswith(_FITS_EXTENSIONS)
-        data_type = "FITS" if is_fits else "UNKNOWN"
-        file_on_server = self.fc.upload_data(BytesIO(data), data_type)
-        self.fc.show_data(
-            file_on_server,
-            preview_metadata=preview,
-            title=title or key.split("/")[-1],
-        )
+        filename = PurePosixPath(key).name
+        suffix = PurePosixPath(filename).suffix or ".dat"
+        with NamedTemporaryFile(suffix=suffix) as tmp:
+            tmp.write(data)
+            tmp.flush()
+            self.fc.show_data(
+                tmp.name,
+                preview_metadata=preview,
+                title=title or filename,
+            )
         return cast(str, self.fc.get_firefly_url())

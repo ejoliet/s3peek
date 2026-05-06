@@ -25,6 +25,7 @@ def test_firefly_help() -> None:
     result = runner.invoke(app, ["firefly", "--help"])
     assert result.exit_code == 0
     assert "--server" in result.output
+    assert "--open-browser" in result.output
     assert "--preview" in result.output
 
 
