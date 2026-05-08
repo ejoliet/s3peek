@@ -33,6 +33,8 @@ def test_firefly_help() -> None:
     assert "--open-browser" in result.output
     assert "--preview" in result.output
     assert "--title" in result.output
+    assert "--presign" in result.output
+    assert "--expiry" in result.output
 
 
 def test_firefly_requires_server_or_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -43,6 +45,53 @@ def test_firefly_requires_server_or_config(monkeypatch: pytest.MonkeyPatch, tmp_
 
     assert result.exit_code == 1
     assert "Error: --server required or set firefly_url in config" in result.output
+
+
+def test_firefly_sends_presigned_url_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    populated_bucket: object,
+) -> None:
+    calls: dict[str, object] = {}
+
+    class FakeClient:
+        def show_data(self, file_input: object, **kwargs: object) -> dict[str, bool]:
+            calls["file_input"] = file_input
+            calls.update(kwargs)
+            return {"success": True}
+
+        def get_firefly_url(self) -> str:
+            return "http://localhost:8080/firefly?__wsch=science"
+
+    class FakeFireflyClient:
+        @staticmethod
+        def make_client(**kwargs: object) -> FakeClient:
+            calls["make_client"] = kwargs
+            return FakeClient()
+
+    monkeypatch.setenv("FIREFLY_URL", "http://localhost:8080/firefly")
+    monkeypatch.setenv("FIREFLY_CHANNEL", "science")
+    monkeypatch.setenv("S3PEEK_CONFIG", str(tmp_path / "missing.toml"))
+    monkeypatch.setitem(
+        sys.modules,
+        "firefly_client",
+        SimpleNamespace(FireflyClient=FakeFireflyClient),
+    )
+
+    result = runner.invoke(
+        app,
+        ["firefly", "s3://test-bucket/data/image.fits", "--preview", "--title", "My FITS"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Generating presigned URL" in result.output
+    assert "Sending to Firefly" in result.output
+    assert "http://localhost:8080/firefly?__wsch=science" in result.output
+    file_input = calls["file_input"]
+    assert isinstance(file_input, str)
+    assert file_input.startswith("https://")
+    assert calls["preview_metadata"] is True
+    assert calls["title"] == "My FITS"
 
 
 def test_firefly_streams_s3_object_to_local_firefly(
@@ -84,6 +133,7 @@ def test_firefly_streams_s3_object_to_local_firefly(
         [
             "firefly",
             "s3://test-bucket/data/image.fits",
+            "--no-presign",
             "--preview",
             "--title",
             "Local FITS",
@@ -91,6 +141,8 @@ def test_firefly_streams_s3_object_to_local_firefly(
     )
 
     assert result.exit_code == 0, result.output
+    assert "Downloading image.fits" in result.output
+    assert "Sending to Firefly" in result.output
     assert "http://localhost:8080/firefly?__wsch=science" in result.output
     assert calls["make_client"] == {
         "url": "http://localhost:8080/firefly",

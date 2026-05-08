@@ -107,6 +107,44 @@ def test_firefly_connector_send_uses_show_data_local_path(monkeypatch: pytest.Mo
     assert calls["title"] == "atlas-abell-test.tbl"
 
 
+def test_firefly_connector_show_url_passes_url_to_show_data(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: dict[str, object] = {}
+
+    class FakeClient:
+        def show_data(self, file_input: object, **kwargs: object) -> dict[str, bool]:
+            calls["file_input"] = file_input
+            calls.update(kwargs)
+            return {"success": True}
+
+        def get_firefly_url(self) -> str:
+            return "http://localhost:8081/firefly?__wsch=s3peek"
+
+    class FakeFireflyClient:
+        @staticmethod
+        def make_client(**_kwargs: object) -> FakeClient:
+            return FakeClient()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "firefly_client",
+        SimpleNamespace(FireflyClient=FakeFireflyClient),
+    )
+
+    from s3peek.firefly import FireflyConnector
+
+    presigned = "https://s3.amazonaws.com/bucket/file.asdf?X-Amz-Signature=abc"
+    url = FireflyConnector("http://localhost:8081/firefly").show_url(
+        presigned,
+        preview=True,
+        title="My File",
+    )
+
+    assert url == "http://localhost:8081/firefly?__wsch=s3peek"
+    assert calls["file_input"] == presigned
+    assert calls["preview_metadata"] is True
+    assert calls["title"] == "My File"
+
+
 def test_firefly_import_error_without_package(monkeypatch: pytest.MonkeyPatch) -> None:
     import builtins
 

@@ -61,3 +61,14 @@ class FireflyConnector:
             title=title,
         )
         return cast(str, self.fc.get_firefly_url())
+
+    def show_url(
+        self,
+        url: str,
+        *,
+        preview: bool = False,
+        title: str | None = None,
+    ) -> str:
+        """Send a remote URL to Firefly without downloading. Returns the Firefly browser URL."""
+        self.fc.show_data(url, preview_metadata=preview, title=title)
+        return cast(str, self.fc.get_firefly_url())

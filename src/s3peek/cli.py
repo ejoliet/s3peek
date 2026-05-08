@@ -169,6 +169,13 @@ def firefly(
     ] = False,
     preview: Annotated[bool, typer.Option("--preview", help="Show metadata picker first")] = False,
     title: Annotated[str | None, typer.Option("--title", help="Display title")] = None,
+    presign: Annotated[
+        bool,
+        typer.Option("--presign/--no-presign", help="Use presigned URL (no download)"),
+    ] = True,
+    expiry: Annotated[
+        str, typer.Option("--expiry", help="Presigned URL expiry: 1h, 30m, 7d")
+    ] = "1h",
 ) -> None:
     """Send an S3 object to a Firefly visualization server."""
     from s3peek.firefly import FireflyConnector
@@ -179,16 +186,27 @@ def firefly(
     if not server_url:
         typer.echo("Error: --server required or set firefly_url in config", err=True)
         raise typer.Exit(1)
+    filename = PurePosixPath(key).name or "object"
     fc = FireflyConnector(
         server_url,
         channel=channel or cfg.firefly_channel,
         launch_browser=open_browser,
     )
-    filename = PurePosixPath(key).name or "object"
-    suffix = PurePosixPath(filename).suffix or ".dat"
-    client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
-    with NamedTemporaryFile(suffix=suffix) as tmp:
-        client.download_object_to_fileobj(bucket, key, tmp.file)
-        tmp.flush()
-        url = fc.show_path(tmp.name, preview=preview, title=title or filename)
+    if presign:
+        typer.echo(f"Generating presigned URL for {filename}...")
+        expiry_secs = parse_expiry(expiry)
+        presigned_url = generate_presigned_url(
+            bucket, key, expiry_seconds=expiry_secs, profile=cfg.aws_profile
+        )
+        typer.echo(f"Sending to Firefly at {server_url}...")
+        url = fc.show_url(presigned_url, preview=preview, title=title or filename)
+    else:
+        suffix = PurePosixPath(filename).suffix or ".dat"
+        client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
+        typer.echo(f"Downloading {filename}...")
+        with NamedTemporaryFile(suffix=suffix) as tmp:
+            client.download_object_to_fileobj(bucket, key, tmp.file)
+            tmp.flush()
+            typer.echo(f"Sending to Firefly at {server_url}...")
+            url = fc.show_path(tmp.name, preview=preview, title=title or filename)
     typer.echo(url)
