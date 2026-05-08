@@ -151,7 +151,10 @@ s3peek peek s3://my-bucket/data/obs001.fits
 s3peek share s3://my-bucket/data/obs001.fits
 
 # Pre-signed URL with custom expiry
-s3peek share s3://my-bucket/data/obs001.fits --expires 4h
+s3peek share s3://my-bucket/data/obs001.fits --expiry 4h
+
+# Send an S3 object to a local Firefly server
+FIREFLY_URL=http://localhost:8080/firefly s3peek firefly s3://my-bucket/data/obs001.fits
 ```
 
 -----
@@ -160,25 +163,22 @@ s3peek share s3://my-bucket/data/obs001.fits --expires 4h
 
 All settings via env var or `~/.config/s3peek/config.toml`.
 
-|Env var                  |Type  |Default    |Description                                              |
-|-------------------------|------|-----------|---------------------------------------------------------|
-|`S3PEEK_DEFAULT_EXPIRY`  |string|`1d`       |Default pre-signed URL expiry. Format: `Xd`, `Xh`, `Xm`  |
-|`S3PEEK_AWS_PROFILE`     |string|`default`  |AWS CLI profile name to use                              |
-|`S3PEEK_AWS_REGION`      |string|`us-east-1`|AWS region for S3 requests                               |
-|`S3PEEK_FITS_MAX_HDUS`   |int   |`10`       |Max HDUs (Header/Data Units) to display in FITS quicklook|
-|`S3PEEK_PARQUET_MAX_COLS`|int   |`50`       |Max columns to show in Parquet schema quicklook          |
-|`S3PEEK_CLIPBOARD`       |bool  |`true`     |Auto-copy pre-signed URL to clipboard                    |
-|`S3PEEK_PAGE_SIZE`       |int   |`200`      |S3 `list_objects_v2` page size for browser               |
-|`S3PEEK_THEME`           |string|`dark`     |TUI theme: `dark` or `light`                             |
+|Env var              |Type  |Default|Description                                                      |
+|---------------------|------|-------|-----------------------------------------------------------------|
+|`AWS_DEFAULT_REGION` |string|unset  |AWS region passed through to boto3 when config omits `aws_region`|
+|`FIREFLY_URL`        |string|unset  |Firefly server URL, e.g. `http://localhost:8080/firefly`         |
+|`FIREFLY_CHANNEL`    |string|unset  |Firefly browser channel override                                |
+|`S3PEEK_CONFIG`      |string|unset  |Path to config TOML; defaults to `~/.config/s3peek/config.toml`  |
 
 `~/.config/s3peek/config.toml` example:
 
 ```toml
-default_expiry = "1d"
 aws_profile = "roman-dev"
 aws_region = "us-east-1"
-fits_max_hdus = 5
-clipboard = true
+presign_expiry_seconds = 3600
+max_range_get_bytes = 65536
+firefly_url = "http://localhost:8080/firefly"
+firefly_channel = "my-session"
 ```
 
 -----
@@ -192,16 +192,17 @@ s3peek [OPTIONS] COMMAND [ARGS]
 
 Commands:
   browse   Interactive TUI browser for a bucket or prefix
+  du       Summarize storage usage under an S3 prefix
+  firefly  Send an S3 object to a Firefly visualization server
+  ls       List objects under an S3 prefix
   peek     Print header/schema of a single S3 object to stdout
   share    Generate a pre-signed URL; copy to clipboard
-  ls       Non-interactive list (like aws s3 ls, but with size/type cols)
   version  Print version and exit
 
 Options:
-  --profile TEXT    AWS profile [env: S3PEEK_AWS_PROFILE]
-  --region TEXT     AWS region  [env: S3PEEK_AWS_REGION]
-  --no-color        Disable ANSI color output
-  --help            Show this message and exit
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell, to copy it or customize the installation.
+  --help                Show this message and exit.
 ```
 
 #### `s3peek browse`
@@ -234,9 +235,8 @@ Arguments:
   S3_URI    s3://bucket/key   required
 
 Options:
-  --format [fits|asdf|parquet|json|auto]   Force format [default: auto]
-  --output [text|yaml|json]                Output format [default: text]
-  --max-bytes INT                          Max bytes for range-GET [default: 65536]
+  --output TEXT      Output format: text or json [default: text]
+  --max-hdus INTEGER Max HDUs to show [default: 1]
 
 Exit codes:
   0   success
@@ -254,12 +254,42 @@ Arguments:
   S3_URI    s3://bucket/key   required
 
 Options:
-  --expires TEXT    Expiry: Xd, Xh, Xm [default: 1d, max: 7d]
-  --no-clipboard    Print URL only; do not copy to clipboard
-  --qr              Print QR code to terminal (requires `qrcode` extra)
+  --expiry TEXT      Expiry: 1h, 30m, 7d [default: 1h]
+  --qr               Print QR code to terminal (requires `qrcode` extra)
 
 Output (stdout):
-  Pre-signed URL as plain text (always printed regardless of --no-clipboard)
+  Pre-signed URL as plain text; copied to clipboard when possible
+```
+
+#### `s3peek du`
+
+```
+s3peek du S3_URI [OPTIONS]
+
+Arguments:
+  S3_URI    s3://bucket[/prefix]  required
+
+Options:
+  --human-readable / --no-human-readable  Print human-readable size [default: human-readable]
+```
+
+#### `s3peek firefly`
+
+```
+s3peek firefly S3_URI [OPTIONS]
+
+Arguments:
+  S3_URI    s3://bucket/key   required
+
+Options:
+  --server TEXT       Firefly server URL; falls back to config `firefly_url` or `FIREFLY_URL`
+  --channel TEXT      Browser tab channel; falls back to config `firefly_channel` or `FIREFLY_CHANNEL`
+  --open-browser      Open Firefly in a browser tab
+  --preview           Show metadata picker first
+  --title TEXT        Display title
+
+Example:
+  FIREFLY_URL=http://localhost:8080/firefly s3peek firefly s3://bucket/data/image.fits
 ```
 
 ### Quicklook output contract
@@ -344,14 +374,14 @@ Config loaded once at startup into:
 
 ```python
 class Config(BaseModel):
-    default_expiry: str = "1d"
-    aws_profile: str = "default"
-    aws_region: str = "us-east-1"
-    fits_max_hdus: int = 10
-    parquet_max_cols: int = 50
-    clipboard: bool = True
-    page_size: int = 200
+    aws_profile: str | None = None
+    aws_region: str | None = None
+    default_bucket: str | None = None
+    presign_expiry_seconds: int = 3600
+    max_range_get_bytes: int = 65536
     theme: str = "dark"
+    firefly_url: str | None = None
+    firefly_channel: str | None = None
 ```
 
 -----
@@ -394,7 +424,7 @@ pytest tests/test_quicklook.py -v
 |`test_s3.py`       |list, stat, range-GET                         |moto S3 mock; `fixtures/` uploaded at setup|
 |`test_quicklook.py`|all four format readers                       |`fixtures/sample.{fits,asdf,parquet,json}` |
 |`test_presign.py`  |URL generation, expiry parsing, clipboard skip|moto + monkeypatched pyperclip             |
-|`test_cli.py`      |all CLI commands, exit codes, `--output json` |moto + Typer CliRunner                     |
+|`test_cli.py`      |CLI smoke paths including Firefly local handoff|moto + Typer CliRunner + fake Firefly     |
 
 **Constraint:** Tests must never hit real AWS endpoints. `moto` mocking mandatory.
 
@@ -440,9 +470,10 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 ## Security
 
 - **Pre-signed URLs** signed with caller's temporary or long-term AWS credentials. Grant no additional IAM permissions beyond signing identity.
-- **Max expiry hard-capped at 7 days** — AWS maximum for signature v4 pre-signed URLs with IAM user credentials; STS session tokens cap at session duration.
+- **Pre-signed URL expiry** — `--expiry` accepts values like `30m`, `1h`, or `7d`; effective maximums still depend on AWS credential/session limits.
 - **No credentials stored** by `s3peek`. Tool is read-only by design (no `s3:PutObject`).
-- **Clipboard warning** — if `S3PEEK_CLIPBOARD=true` (default), pre-signed URL silently written to system clipboard. Users sharing screen should be aware.
+- **Clipboard warning** — `share` copies the pre-signed URL when system clipboard support is available, then prints the URL to stdout.
+- **Firefly handoff is local by default** — the CLI downloads the selected S3 object to a transient local file and passes that path to Firefly. It does not expose bucket credentials or generate remote URLs for Firefly.
 
 -----
 
@@ -523,8 +554,8 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 - [ ] `make test` passes with ≥ 80% coverage
 - [ ] `make lint` passes (`ruff check` + `mypy --strict`)
 - [ ] `s3peek peek s3://test-bucket/sample.fits` prints HDU table to stdout
-- [ ] `s3peek share s3://test-bucket/sample.fits --no-clipboard` prints valid pre-signed URL
-- [ ] `s3peek share s3://test-bucket/sample.fits --expires 8d` exits code 1 with error on stderr
+- [ ] `s3peek share s3://test-bucket/sample.fits` prints valid pre-signed URL
+- [ ] `s3peek share s3://test-bucket/sample.fits --expiry bad` exits code 1 with error on stderr
 - [ ] `s3peek browse s3://test-bucket/` launches TUI without crash (manual check)
 - [ ] `make build-binary` produces standalone executable on macOS and Linux
 - [ ] `brew install --build-from-source Formula/s3peek.rb` succeeds locally

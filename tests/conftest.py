@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Generator
+from typing import Any
+
 import boto3
 import pytest
 from moto import mock_aws
@@ -15,13 +18,13 @@ def aws_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def s3_client(aws_credentials: None):  # type: ignore[misc]
+def s3_client(aws_credentials: None) -> Generator[Any, None, None]:
     with mock_aws():
         yield boto3.client("s3", region_name="us-east-1")
 
 
 @pytest.fixture
-def populated_bucket(s3_client):  # type: ignore[misc]
+def populated_bucket(s3_client: Any) -> Generator[Any, None, None]:
     s3_client.create_bucket(Bucket="test-bucket")
     s3_client.put_object(
         Bucket="test-bucket", Key="data/sample.json", Body=b'{"hello": "world"}'

@@ -13,8 +13,10 @@ class ASDFReader:
         return first_bytes[:5] == b"#ASDF" or key.lower().endswith(self.extensions)
 
     def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
-        import asdf
+        import asdf  # type: ignore[import-untyped]
 
         with asdf.open(io.BytesIO(data)) as af:
-            tree = {k: str(v) for k, v in af.tree.items() if not k.startswith("asdf")}
+            tree: dict[str, object] = {
+                str(k): str(v) for k, v in af.tree.items() if not str(k).startswith("asdf")
+            }
         return HeaderResult(format="asdf", headers=[tree])

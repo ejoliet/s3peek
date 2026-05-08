@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import IO, Any, cast
 from urllib.parse import urlparse
 
 import boto3
@@ -34,8 +35,16 @@ def parse_s3_uri(uri: str) -> tuple[str, str]:
 
 class S3Client:
     def __init__(self, profile: str | None = None, region: str | None = None) -> None:
-        session = boto3.Session(profile_name=profile, region_name=region)
-        self._s3 = session.client("s3")
+        self._profile = profile
+        self._region = region
+        self._s3_client: Any | None = None
+
+    @property
+    def _s3(self) -> Any:
+        if self._s3_client is None:
+            session = boto3.Session(profile_name=self._profile, region_name=self._region)
+            self._s3_client = session.client("s3")
+        return self._s3_client
 
     def list_prefix(
         self,
@@ -81,7 +90,14 @@ class S3Client:
             resp = self._s3.get_object(Bucket=bucket, Key=key, Range=range_header)
         except ClientError as exc:
             _raise_from_client_error(exc, bucket=bucket, key=key)
-        return resp["Body"].read()
+        return cast(bytes, resp["Body"].read())
+
+    def download_object_to_fileobj(self, bucket: str, key: str, fileobj: IO[bytes]) -> None:
+        """Stream an S3 object into an already-open binary file object."""
+        try:
+            self._s3.download_fileobj(bucket, key, fileobj)
+        except ClientError as exc:
+            _raise_from_client_error(exc, bucket=bucket, key=key)
 
     def sum_prefix_sizes(self, bucket: str, prefix: str) -> dict[str, int]:
         """Return total_bytes and count of objects under prefix."""

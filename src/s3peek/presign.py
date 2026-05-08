@@ -29,5 +29,5 @@ def parse_expiry(expiry_str: str) -> int:
 
 
 def copy_to_clipboard(text: str) -> None:
-    import pyperclip
+    import pyperclip  # type: ignore[import-untyped]
     pyperclip.copy(text)
