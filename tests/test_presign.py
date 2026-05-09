@@ -16,7 +16,7 @@ def test_parse_expiry_invalid() -> None:
         parse_expiry("bad")
 
 
-def test_generate_presigned_url(populated_bucket) -> None:  # type: ignore[misc]
+def test_generate_presigned_url(populated_bucket: object) -> None:
     url = generate_presigned_url("test-bucket", "data/sample.json", expiry_seconds=3600)
     assert "test-bucket" in url
     assert "sample.json" in url

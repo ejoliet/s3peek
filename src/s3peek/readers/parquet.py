@@ -16,8 +16,8 @@ class ParquetReader:
         import pyarrow.parquet as pq
 
         try:
-            schema = pq.read_schema(io.BytesIO(data))
-            fields = {f.name: str(f.type) for f in schema}
+            schema = pq.read_schema(io.BytesIO(data))  # type: ignore[no-untyped-call]
+            fields: dict[str, object] = {str(f.name): str(f.type) for f in schema}
         except Exception:
             fields = {"note": "schema in footer; file too large for range-get preview"}
         return HeaderResult(format="parquet", headers=[fields])

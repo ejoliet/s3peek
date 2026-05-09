@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from os import PathLike
 from pathlib import PurePosixPath
 from tempfile import NamedTemporaryFile
 from typing import cast
@@ -40,9 +41,34 @@ class FireflyConnector:
         with NamedTemporaryFile(suffix=suffix) as tmp:
             tmp.write(data)
             tmp.flush()
-            self.fc.show_data(
+            return self.show_path(
                 tmp.name,
-                preview_metadata=preview,
+                preview=preview,
                 title=title or filename,
             )
+
+    def show_path(
+        self,
+        path: str | PathLike[str],
+        *,
+        preview: bool = False,
+        title: str | None = None,
+    ) -> str:
+        """Display a local file path in Firefly. Returns the Firefly browser URL."""
+        self.fc.show_data(
+            str(path),
+            preview_metadata=preview,
+            title=title,
+        )
+        return cast(str, self.fc.get_firefly_url())
+
+    def show_url(
+        self,
+        url: str,
+        *,
+        preview: bool = False,
+        title: str | None = None,
+    ) -> str:
+        """Send a remote URL to Firefly without downloading. Returns the Firefly browser URL."""
+        self.fc.show_data(url, preview_metadata=preview, title=title)
         return cast(str, self.fc.get_firefly_url())

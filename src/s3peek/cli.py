@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import fnmatch
 import json
+from pathlib import PurePosixPath
+from tempfile import NamedTemporaryFile
 from typing import Annotated
 
 import typer
@@ -52,7 +54,15 @@ def peek(
     data = client.range_get(bucket, key, length=cfg.max_range_get_bytes)
     result = quicklook(data, key, max_headers=max_hdus)
     if output == "json":
-        typer.echo(json.dumps({"format": result.format, "size": meta.size, "headers": result.headers}))
+        typer.echo(
+            json.dumps(
+                {
+                    "format": result.format,
+                    "size": meta.size,
+                    "headers": result.headers,
+                }
+            )
+        )
     else:
         typer.echo(f"Format: {result.format}  Size: {meta.size}  s3://{bucket}/{key}")
         for i, hdr in enumerate(result.headers):
@@ -80,7 +90,7 @@ def share(
         pass
     typer.echo(url)
     if qr:
-        import qrcode  # type: ignore[import]
+        import qrcode  # type: ignore[import-untyped]
         qr_obj = qrcode.QRCode()
         qr_obj.add_data(url)
         qr_obj.make(fit=True)
@@ -109,7 +119,14 @@ def ls_command(
     if output == "json":
         typer.echo(
             json.dumps(
-                [{"key": i.key, "size": i.size, "last_modified": i.last_modified.isoformat()} for i in items]
+                [
+                    {
+                        "key": i.key,
+                        "size": i.size,
+                        "last_modified": i.last_modified.isoformat(),
+                    }
+                    for i in items
+                ]
             )
         )
     else:
@@ -125,16 +142,29 @@ def du(
     """Summarize storage usage under an S3 prefix."""
     bucket, prefix = parse_s3_uri(uri)
     cfg = Config.load()
-    result = S3Client(profile=cfg.aws_profile, region=cfg.aws_region).sum_prefix_sizes(bucket, prefix)
+    result = S3Client(profile=cfg.aws_profile, region=cfg.aws_region).sum_prefix_sizes(
+        bucket,
+        prefix,
+    )
     size, count = result["total_bytes"], result["count"]
     if human_readable:
+        display_size = float(size)
         for unit in ("B", "KB", "MB", "GB", "TB"):
-            if size < 1024 or unit == "TB":
+            if display_size < 1024 or unit == "TB":
                 break
-            size /= 1024
-        typer.echo(f"{size:.1f} {unit}  ({count} objects)  s3://{bucket}/{prefix}")
+            display_size /= 1024
+        typer.echo(f"{display_size:.1f} {unit}  ({count} objects)  s3://{bucket}/{prefix}")
     else:
         typer.echo(f"{result['total_bytes']}\t{count}\ts3://{bucket}/{prefix}")
+
+
+_LARGE_FILE_THRESHOLD = 50 * 1024 * 1024  # 50 MB
+
+
+def _should_auto_preview(key: str, size_bytes: int) -> bool:
+    """Return True when Firefly's metadata picker improves the experience."""
+    suffix = PurePosixPath(key).suffix.lower()
+    return suffix == ".asdf" or size_bytes > _LARGE_FILE_THRESHOLD
 
 
 @app.command()
@@ -144,10 +174,20 @@ def firefly(
     channel: Annotated[str | None, typer.Option("--channel", help="Browser tab channel")] = None,
     open_browser: Annotated[
         bool,
-        typer.Option("--open-browser", help="Open Firefly in a browser tab"),
-    ] = False,
-    preview: Annotated[bool, typer.Option("--preview", help="Show metadata picker first")] = False,
+        typer.Option("--open-browser/--no-open-browser", help="Open Firefly in a browser tab (default: open)"),
+    ] = True,
+    preview: Annotated[
+        bool | None,
+        typer.Option("--preview/--no-preview", help="Metadata picker (default: auto for ASDF and files >50 MB)"),
+    ] = None,
     title: Annotated[str | None, typer.Option("--title", help="Display title")] = None,
+    presign: Annotated[
+        bool,
+        typer.Option("--presign/--no-presign", help="Use presigned URL (Firefly fetches from S3)"),
+    ] = False,
+    expiry: Annotated[
+        str, typer.Option("--expiry", help="Presigned URL expiry: 1h, 30m, 7d")
+    ] = "1h",
 ) -> None:
     """Send an S3 object to a Firefly visualization server."""
     from s3peek.firefly import FireflyConnector
@@ -158,12 +198,29 @@ def firefly(
     if not server_url:
         typer.echo("Error: --server required or set firefly_url in config", err=True)
         raise typer.Exit(1)
+    filename = PurePosixPath(key).name or "object"
     client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
-    data = client._s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+    meta = client.stat_object(bucket, key)
+    effective_preview = preview if preview is not None else _should_auto_preview(key, meta.size)
     fc = FireflyConnector(
         server_url,
         channel=channel or cfg.firefly_channel,
         launch_browser=open_browser,
     )
-    url = fc.send(data, key, preview=preview, title=title)
+    if presign:
+        typer.echo(f"Generating presigned URL for {filename}...")
+        expiry_secs = parse_expiry(expiry)
+        presigned_url = generate_presigned_url(
+            bucket, key, expiry_seconds=expiry_secs, profile=cfg.aws_profile
+        )
+        typer.echo(f"Sending to Firefly at {server_url}...")
+        url = fc.show_url(presigned_url, preview=effective_preview, title=title or filename)
+    else:
+        suffix = PurePosixPath(filename).suffix or ".dat"
+        typer.echo(f"Downloading {filename}...")
+        with NamedTemporaryFile(suffix=suffix) as tmp:
+            client.download_object_to_fileobj(bucket, key, tmp.file)
+            tmp.flush()
+            typer.echo(f"Sending to Firefly at {server_url}...")
+            url = fc.show_path(tmp.name, preview=effective_preview, title=title or filename)
     typer.echo(url)
