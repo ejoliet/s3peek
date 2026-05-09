@@ -158,6 +158,15 @@ def du(
         typer.echo(f"{result['total_bytes']}\t{count}\ts3://{bucket}/{prefix}")
 
 
+_LARGE_FILE_THRESHOLD = 50 * 1024 * 1024  # 50 MB
+
+
+def _should_auto_preview(key: str, size_bytes: int) -> bool:
+    """Return True when Firefly's metadata picker improves the experience."""
+    suffix = PurePosixPath(key).suffix.lower()
+    return suffix == ".asdf" or size_bytes > _LARGE_FILE_THRESHOLD
+
+
 @app.command()
 def firefly(
     uri: Annotated[str, typer.Argument(help="S3 URI of the object to visualize.")],
@@ -165,14 +174,17 @@ def firefly(
     channel: Annotated[str | None, typer.Option("--channel", help="Browser tab channel")] = None,
     open_browser: Annotated[
         bool,
-        typer.Option("--open-browser", help="Open Firefly in a browser tab"),
-    ] = False,
-    preview: Annotated[bool, typer.Option("--preview", help="Show metadata picker first")] = False,
+        typer.Option("--open-browser/--no-open-browser", help="Open Firefly in a browser tab (default: open)"),
+    ] = True,
+    preview: Annotated[
+        bool | None,
+        typer.Option("--preview/--no-preview", help="Metadata picker (default: auto for ASDF and files >50 MB)"),
+    ] = None,
     title: Annotated[str | None, typer.Option("--title", help="Display title")] = None,
     presign: Annotated[
         bool,
-        typer.Option("--presign/--no-presign", help="Use presigned URL (no download)"),
-    ] = True,
+        typer.Option("--presign/--no-presign", help="Use presigned URL (Firefly fetches from S3)"),
+    ] = False,
     expiry: Annotated[
         str, typer.Option("--expiry", help="Presigned URL expiry: 1h, 30m, 7d")
     ] = "1h",
@@ -187,6 +199,9 @@ def firefly(
         typer.echo("Error: --server required or set firefly_url in config", err=True)
         raise typer.Exit(1)
     filename = PurePosixPath(key).name or "object"
+    client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
+    meta = client.stat_object(bucket, key)
+    effective_preview = preview if preview is not None else _should_auto_preview(key, meta.size)
     fc = FireflyConnector(
         server_url,
         channel=channel or cfg.firefly_channel,
@@ -199,14 +214,13 @@ def firefly(
             bucket, key, expiry_seconds=expiry_secs, profile=cfg.aws_profile
         )
         typer.echo(f"Sending to Firefly at {server_url}...")
-        url = fc.show_url(presigned_url, preview=preview, title=title or filename)
+        url = fc.show_url(presigned_url, preview=effective_preview, title=title or filename)
     else:
         suffix = PurePosixPath(filename).suffix or ".dat"
-        client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
         typer.echo(f"Downloading {filename}...")
         with NamedTemporaryFile(suffix=suffix) as tmp:
             client.download_object_to_fileobj(bucket, key, tmp.file)
             tmp.flush()
             typer.echo(f"Sending to Firefly at {server_url}...")
-            url = fc.show_path(tmp.name, preview=preview, title=title or filename)
+            url = fc.show_path(tmp.name, preview=effective_preview, title=title or filename)
     typer.echo(url)

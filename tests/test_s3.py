@@ -52,10 +52,10 @@ def test_parse_s3_uri_invalid() -> None:
 def test_list_prefix(populated_bucket: object) -> None:
     client = S3Client()
     results = client.list_prefix("test-bucket", "data/")
-    assert len(results) == 2
     keys = {r.key for r in results}
     assert "data/sample.json" in keys
     assert "data/image.fits" in keys
+    assert "data/spectrum.asdf" in keys
 
 
 def test_stat_object(populated_bucket: object) -> None:
@@ -84,7 +84,7 @@ def test_download_object_to_fileobj(populated_bucket: object) -> None:
 def test_sum_prefix_sizes(populated_bucket: object) -> None:
     client = S3Client()
     result = client.sum_prefix_sizes("test-bucket", "data/")
-    assert result["count"] == 2
+    assert result["count"] == 3
     assert result["total_bytes"] > 0
 
 

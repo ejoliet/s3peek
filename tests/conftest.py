@@ -32,4 +32,7 @@ def populated_bucket(s3_client: Any) -> Generator[Any, None, None]:
     s3_client.put_object(
         Bucket="test-bucket", Key="data/image.fits", Body=b"SIMPLE  = T" + b" " * 69
     )
+    s3_client.put_object(
+        Bucket="test-bucket", Key="data/spectrum.asdf", Body=b"#ASDF 1.0.0\n"
+    )
     yield s3_client
