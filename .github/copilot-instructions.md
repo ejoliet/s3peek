@@ -150,3 +150,100 @@ Tests **never** touch real AWS — `moto[s3]` intercepts all boto3 calls.
 - [ ] New behavior is covered by a test.
 - [ ] `CHANGELOG.md` updated with a one-line entry under `Unreleased`.
 - [ ] If a new reader is added, the `CONTRIBUTING.md` table is updated.
+
+---
+
+## Decision-making guidance
+
+When suggesting or generating code, apply these priorities in order:
+
+1. **Correctness** — the change must be functionally correct and handle edge cases.
+2. **Safety** — never introduce credential storage, full-file S3 downloads, or bare `except` blocks.
+3. **Minimal footprint** — prefer small, surgical changes over broad refactors.
+4. **Consistency** — match the style, naming, and patterns already in the affected file.
+5. **Testability** — every new public function or command should be coverable by a `pytest` + `moto` test.
+
+If two approaches are roughly equivalent, prefer the one that keeps the plugin interface stable so third-party readers and themes continue to work without changes.
+
+---
+
+## Context / memory anchors
+
+Because Copilot context resets between sessions, the following are the most important facts to re-establish at the start of any new conversation about this codebase:
+
+- The entry-point group names are `s3peek.readers`, `s3peek.themes`, and `s3peek.commands` — changing them would be a breaking change for all third-party plugins.
+- All AWS interactions go through `src/s3peek/s3.py` (`S3Client`). Never call `boto3` directly from CLI commands or readers.
+- `quicklook.py` is the single dispatcher; it does **not** know about formats — it delegates to whichever reader `plugins.load_readers()` returns.
+- `moto[s3]` is the only acceptable mock for S3 in tests. Do not use `unittest.mock` to patch boto3 at the call site.
+- `mypy --strict` must pass. Every function and method needs type annotations.
+
+---
+
+## Implementation plan template
+
+When planning a non-trivial change, structure the plan as:
+
+1. **Goal** — one sentence describing the outcome.
+2. **Affected modules** — list files that will change.
+3. **Interface changes** — describe any changes to public APIs or entry-point contracts.
+4. **Test plan** — which existing tests cover this, and what new tests are needed.
+5. **Rollout** — any migration steps or version-bump requirements.
+6. **Open questions** — anything that needs a decision before implementation starts.
+
+Share the plan in the PR description or as a comment before writing code for large features.
+
+---
+
+## Branching and workflow conventions
+
+| Activity | Branch prefix | Example |
+|---|---|---|
+| New feature | `feat/` | `feat/hdf5-reader` |
+| Bug fix | `fix/` | `fix/presign-expiry-default` |
+| Chore / maintenance | `chore/` | `chore/bump-ruff` |
+| Documentation | `docs/` | `docs/update-contributing` |
+
+- All PRs target `main`.
+- Squash-merge is preferred for small changes; merge commits for features with meaningful history.
+- Tag format: `vMAJOR.MINOR.PATCH` (semver). The `release.yml` workflow triggers on tags matching `v*`.
+
+---
+
+## Peer review QA checklist
+
+Reviewers and Copilot should verify:
+
+- [ ] No new `boto3` calls outside `src/s3peek/s3.py`.
+- [ ] No credentials, tokens, or secrets appear anywhere in the diff.
+- [ ] Range-GET byte limits respected — no reader fetches more than `config.max_range_get_bytes`.
+- [ ] New exceptions are subclasses of the base class in `exceptions.py`, not raw `Exception`.
+- [ ] Public functions have type annotations and docstrings (one-liner minimum).
+- [ ] Third-party plugin interface (`BaseReader`, `ThemeBase`, `typer.Typer`) is unchanged unless the PR is explicitly an API revision.
+- [ ] `moto` is used for all S3 interactions in tests — no live AWS calls.
+- [ ] `CHANGELOG.md` has a one-line entry under `Unreleased`.
+
+---
+
+## Security guidelines
+
+- **No credential storage** — never write AWS keys, tokens, or secrets to disk, environment files committed to the repo, or log output.
+- **Pre-signed URL expiry** — default is `presign_expiry_seconds = 3600`; do not raise the ceiling above 7 days (AWS maximum).
+- **Input validation** — S3 URIs from the user must be parsed and validated before use; reject malformed `s3://` URIs early with a clear error message.
+- **Dependency pinning** — minimum versions are pinned in `pyproject.toml`; avoid adding dependencies with known CVEs (check the GitHub Advisory Database before adding).
+- **No shell injection** — never pass user-supplied strings to `subprocess`, `os.system`, or shell=True invocations.
+- **Clipboard output only** — pre-signed URLs are written to the clipboard and/or stdout. They are never logged to a file.
+
+---
+
+## Cloud / AWS engineer context
+
+- **Credential chain** — s3peek relies entirely on the boto3 default credential chain: `~/.aws/credentials`, environment variables (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`), EC2 instance profiles, and ECS task roles. No custom auth logic.
+- **Region** — `aws_region` in `config.toml` or `AWS_DEFAULT_REGION` env var. If unset, boto3 uses its own default (usually `us-east-1`).
+- **IAM minimum permissions required:**
+  - `s3:ListBucket` on the target bucket.
+  - `s3:GetObject` on the target prefix.
+  - `s3:GetObjectAttributes` for stat operations.
+  - No write permissions are required or used.
+- **VPC / private buckets** — works transparently when the environment has a VPC endpoint for S3 or appropriate routing; no special configuration needed in s3peek.
+- **Moto mock** — all tests use `moto[s3]` with `@mock_aws`. The fixture in `tests/conftest.py` creates a fresh bucket per test. Real AWS is never contacted during `make test`.
+- **Pre-signed URLs** — generated via `boto3` `generate_presigned_url`; expiry defaults to 3600 s and is configurable. The URL is signed with whichever credentials boto3 resolved at runtime.
