@@ -15,7 +15,7 @@ class JSONReader:
     def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
         obj = json.loads(data)
         if isinstance(obj, dict):
-            hdr = {k: str(v) for k, v in obj.items()}
+            hdr: dict[str, object] = {str(k): str(v) for k, v in obj.items()}
         elif isinstance(obj, list):
             hdr = {"type": "array", "length": str(len(obj))}
         else:

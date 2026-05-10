@@ -1,6 +1,6 @@
 # s3peek
 
-> Navigate S3 buckets from your terminal — with instant header quicklook for FITS, ASDF, Parquet, and JSON files, plus one-command pre-signed URL sharing.
+> Navigate S3 buckets from terminal — instant header quicklook for FITS, ASDF, Parquet, JSON files, plus one-command pre-signed URL sharing.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ejoliet/s3peek/ci.yml?branch=main)](https://github.com/ejoliet/s3peek/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,11 +11,11 @@
 
 ## Purpose
 
-**Problem:** Navigating S3 buckets from the CLI is clunky. `aws s3 ls` shows raw keys; inspecting a FITS or ASDF file means downloading it first; sharing a file with a colleague requires remembering the `aws s3 presign` syntax and expiry flags.
+**Problem:** S3 CLI navigation clunky. `aws s3 ls` shows raw keys; inspecting FITS/ASDF requires download first; sharing files needs remembering `aws s3 presign` syntax and expiry flags.
 
-**Solution:** `s3peek` is a terminal-first S3 browser that combines interactive bucket navigation (arrow keys, fuzzy filter) with in-place header quicklook for astronomy and data science formats, and instant pre-signed URL generation with clipboard copy.
+**Solution:** `s3peek` — terminal-first S3 browser combining interactive bucket navigation (arrow keys, fuzzy filter) with in-place header quicklook for astronomy/data science formats, plus instant pre-signed URL generation with clipboard copy.
 
-**Who benefits:** Astronomers and data engineers at IPAC, STScI, or any institution working with AWS-hosted science data (FITS, ASDF, Parquet, JSON). Zero Python import required by end users — distributed as a standalone binary or Homebrew formula.
+**Who benefits:** Astronomers and data engineers at IPAC, STScI, or institutions working with AWS-hosted science data (FITS, ASDF, Parquet, JSON). Zero Python import required — distributed as standalone binary or Homebrew formula.
 
 -----
 
@@ -38,10 +38,10 @@
 
 **Key design decisions:**
 
-- **Range-GET for headers** — FITS and Parquet headers are read with HTTP `Range` requests (first N bytes only). No full file download.
-- **Streaming ASDF open** — ASDF tree is read via `asdf.open()` with `lazy_load=True`; only the YAML header block is parsed.
-- **No local state** — no database, no cache file. All navigation state is in-memory for the session.
-- **AWS credentials pass-through** — uses the standard boto3 credential chain (`~/.aws`, env vars, instance profile). No credential storage.
+- **Range-GET for headers** — FITS/Parquet headers read via HTTP `Range` requests (first N bytes only). No full download.
+- **Streaming ASDF open** — ASDF tree read via `asdf.open()` with `lazy_load=True`; only YAML header block parsed.
+- **No local state** — no DB, no cache file. All navigation state in-memory per session.
+- **AWS credentials pass-through** — standard boto3 credential chain (`~/.aws`, env vars, instance profile). No credential storage.
 
 -----
 
@@ -109,7 +109,7 @@ s3peek/
 }
 ```
 
-For pre-signed URLs: the caller’s identity signs the URL. The recipient does **not** need AWS credentials. No `s3:PutObject` or `s3:GetBucketPolicy` required.
+Pre-signed URLs: caller's identity signs URL. Recipient needs no AWS credentials. No `s3:PutObject` or `s3:GetBucketPolicy` required.
 
 -----
 
@@ -151,34 +151,34 @@ s3peek peek s3://my-bucket/data/obs001.fits
 s3peek share s3://my-bucket/data/obs001.fits
 
 # Pre-signed URL with custom expiry
-s3peek share s3://my-bucket/data/obs001.fits --expires 4h
+s3peek share s3://my-bucket/data/obs001.fits --expiry 4h
+
+# Send an S3 object to a local Firefly server
+FIREFLY_URL=http://localhost:8080/firefly s3peek firefly s3://my-bucket/data/obs001.fits
 ```
 
 -----
 
 ## Configuration Reference
 
-All settings can be set via environment variable or `~/.config/s3peek/config.toml`.
+All settings via env var or `~/.config/s3peek/config.toml`.
 
-|Env var                  |Type  |Default    |Description                                              |
-|-------------------------|------|-----------|---------------------------------------------------------|
-|`S3PEEK_DEFAULT_EXPIRY`  |string|`1d`       |Default pre-signed URL expiry. Format: `Xd`, `Xh`, `Xm`  |
-|`S3PEEK_AWS_PROFILE`     |string|`default`  |AWS CLI profile name to use                              |
-|`S3PEEK_AWS_REGION`      |string|`us-east-1`|AWS region for S3 requests                               |
-|`S3PEEK_FITS_MAX_HDUS`   |int   |`10`       |Max HDUs (Header/Data Units) to display in FITS quicklook|
-|`S3PEEK_PARQUET_MAX_COLS`|int   |`50`       |Max columns to show in Parquet schema quicklook          |
-|`S3PEEK_CLIPBOARD`       |bool  |`true`     |Auto-copy pre-signed URL to clipboard                    |
-|`S3PEEK_PAGE_SIZE`       |int   |`200`      |S3 `list_objects_v2` page size for browser               |
-|`S3PEEK_THEME`           |string|`dark`     |TUI theme: `dark` or `light`                             |
+|Env var              |Type  |Default|Description                                                      |
+|---------------------|------|-------|-----------------------------------------------------------------|
+|`AWS_DEFAULT_REGION` |string|unset  |AWS region passed through to boto3 when config omits `aws_region`|
+|`FIREFLY_URL`        |string|unset  |Firefly server URL, e.g. `http://localhost:8080/firefly`         |
+|`FIREFLY_CHANNEL`    |string|unset  |Firefly browser channel override                                |
+|`S3PEEK_CONFIG`      |string|unset  |Path to config TOML; defaults to `~/.config/s3peek/config.toml`  |
 
 `~/.config/s3peek/config.toml` example:
 
 ```toml
-default_expiry = "1d"
 aws_profile = "roman-dev"
 aws_region = "us-east-1"
-fits_max_hdus = 5
-clipboard = true
+presign_expiry_seconds = 3600
+max_range_get_bytes = 65536
+firefly_url = "http://localhost:8080/firefly"
+firefly_channel = "my-session"
 ```
 
 -----
@@ -192,16 +192,17 @@ s3peek [OPTIONS] COMMAND [ARGS]
 
 Commands:
   browse   Interactive TUI browser for a bucket or prefix
+  du       Summarize storage usage under an S3 prefix
+  firefly  Send an S3 object to a Firefly visualization server
+  ls       List objects under an S3 prefix
   peek     Print header/schema of a single S3 object to stdout
   share    Generate a pre-signed URL; copy to clipboard
-  ls       Non-interactive list (like aws s3 ls, but with size/type cols)
   version  Print version and exit
 
 Options:
-  --profile TEXT    AWS profile [env: S3PEEK_AWS_PROFILE]
-  --region TEXT     AWS region  [env: S3PEEK_AWS_REGION]
-  --no-color        Disable ANSI color output
-  --help            Show this message and exit
+  --install-completion  Install completion for the current shell.
+  --show-completion     Show completion for the current shell, to copy it or customize the installation.
+  --help                Show this message and exit.
 ```
 
 #### `s3peek browse`
@@ -234,9 +235,8 @@ Arguments:
   S3_URI    s3://bucket/key   required
 
 Options:
-  --format [fits|asdf|parquet|json|auto]   Force format [default: auto]
-  --output [text|yaml|json]                Output format [default: text]
-  --max-bytes INT                          Max bytes for range-GET [default: 65536]
+  --output TEXT      Output format: text or json [default: text]
+  --max-hdus INTEGER Max HDUs to show [default: 1]
 
 Exit codes:
   0   success
@@ -254,17 +254,47 @@ Arguments:
   S3_URI    s3://bucket/key   required
 
 Options:
-  --expires TEXT    Expiry: Xd, Xh, Xm [default: 1d, max: 7d]
-  --no-clipboard    Print URL only; do not copy to clipboard
-  --qr              Print QR code to terminal (requires `qrcode` extra)
+  --expiry TEXT      Expiry: 1h, 30m, 7d [default: 1h]
+  --qr               Print QR code to terminal (requires `qrcode` extra)
 
 Output (stdout):
-  Pre-signed URL as plain text (always printed regardless of --no-clipboard)
+  Pre-signed URL as plain text; copied to clipboard when possible
+```
+
+#### `s3peek du`
+
+```
+s3peek du S3_URI [OPTIONS]
+
+Arguments:
+  S3_URI    s3://bucket[/prefix]  required
+
+Options:
+  --human-readable / --no-human-readable  Print human-readable size [default: human-readable]
+```
+
+#### `s3peek firefly`
+
+```
+s3peek firefly S3_URI [OPTIONS]
+
+Arguments:
+  S3_URI    s3://bucket/key   required
+
+Options:
+  --server TEXT       Firefly server URL; falls back to config `firefly_url` or `FIREFLY_URL`
+  --channel TEXT      Browser tab channel; falls back to config `firefly_channel` or `FIREFLY_CHANNEL`
+  --open-browser      Open Firefly in a browser tab
+  --preview           Show metadata picker first
+  --title TEXT        Display title
+
+Example:
+  FIREFLY_URL=http://localhost:8080/firefly s3peek firefly s3://bucket/data/image.fits
 ```
 
 ### Quicklook output contract
 
-Each format reader returns a `HeaderResult` object:
+Each format reader returns `HeaderResult`:
 
 ```python
 from dataclasses import dataclass, field
@@ -329,7 +359,7 @@ JSON `headers` entry structure:
 
 ## Data Model
 
-No persistent storage. All runtime state lives in:
+No persistent storage. All runtime state in:
 
 ```python
 @dataclass
@@ -340,18 +370,18 @@ class SessionState:
     selected_key: str | None = None
 ```
 
-Config is loaded once at startup into:
+Config loaded once at startup into:
 
 ```python
 class Config(BaseModel):
-    default_expiry: str = "1d"
-    aws_profile: str = "default"
-    aws_region: str = "us-east-1"
-    fits_max_hdus: int = 10
-    parquet_max_cols: int = 50
-    clipboard: bool = True
-    page_size: int = 200
+    aws_profile: str | None = None
+    aws_region: str | None = None
+    default_bucket: str | None = None
+    presign_expiry_seconds: int = 3600
+    max_range_get_bytes: int = 65536
     theme: str = "dark"
+    firefly_url: str | None = None
+    firefly_channel: str | None = None
 ```
 
 -----
@@ -367,7 +397,7 @@ class Config(BaseModel):
 |`PresignExpirySyntaxError` |Expiry string invalid                  |1        |`"Invalid expiry format. Use: 1d, 6h, 30m"`                   |
 |`PresignExpiryTooLongError`|Expiry > 7 days                        |1        |`"Maximum expiry is 7 days (604800 seconds)"`                 |
 
-All errors write to `stderr`. `stdout` is reserved for data output only.
+All errors -> `stderr`. `stdout` reserved for data output only.
 
 -----
 
@@ -394,9 +424,9 @@ pytest tests/test_quicklook.py -v
 |`test_s3.py`       |list, stat, range-GET                         |moto S3 mock; `fixtures/` uploaded at setup|
 |`test_quicklook.py`|all four format readers                       |`fixtures/sample.{fits,asdf,parquet,json}` |
 |`test_presign.py`  |URL generation, expiry parsing, clipboard skip|moto + monkeypatched pyperclip             |
-|`test_cli.py`      |all CLI commands, exit codes, `--output json` |moto + Typer CliRunner                     |
+|`test_cli.py`      |CLI smoke paths including Firefly local handoff|moto + Typer CliRunner + fake Firefly     |
 
-**Constraint:** Tests must never hit real AWS endpoints. `moto` mocking is mandatory.
+**Constraint:** Tests must never hit real AWS endpoints. `moto` mocking mandatory.
 
 -----
 
@@ -404,9 +434,9 @@ pytest tests/test_quicklook.py -v
 
 ### Homebrew (primary macOS + Linux)
 
-The `Formula/s3peek.rb` formula is auto-generated by `release.yml` on tag push.
+`Formula/s3peek.rb` auto-generated by `release.yml` on tag push.
 
-Manual formula update (for maintainer):
+Manual formula update (maintainer):
 
 ```bash
 make brew-bump VERSION=0.2.0 SHA256=<sha256_of_tarball>
@@ -418,8 +448,7 @@ make brew-bump VERSION=0.2.0 SHA256=<sha256_of_tarball>
 make build-binary   # outputs dist/s3peek (macOS) or dist/s3peek-linux
 ```
 
-CI builds for `macos-latest` and `ubuntu-latest` via GitHub Actions matrix.
-Artifacts uploaded to GitHub Release assets.
+CI builds for `macos-latest` and `ubuntu-latest` via GitHub Actions matrix. Artifacts uploaded to GitHub Release assets.
 
 ### pip / uv
 
@@ -440,18 +469,19 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 
 ## Security
 
-- **Pre-signed URLs** are signed with the caller’s temporary or long-term AWS credentials. They do not grant any additional IAM permissions beyond what the signing identity has.
-- **Max expiry is hard-capped at 7 days** — the AWS maximum for signature v4 pre-signed URLs with IAM user credentials; STS session tokens cap at session duration.
-- **No credentials stored** by `s3peek` itself. The tool is read-only by design (no `s3:PutObject`).
-- **Clipboard warning** — if `S3PEEK_CLIPBOARD=true` (default), the pre-signed URL is silently written to the system clipboard. Users sharing their screen should be aware.
+- **Pre-signed URLs** signed with caller's temporary or long-term AWS credentials. Grant no additional IAM permissions beyond signing identity.
+- **Pre-signed URL expiry** — `--expiry` accepts values like `30m`, `1h`, or `7d`; effective maximums still depend on AWS credential/session limits.
+- **No credentials stored** by `s3peek`. Tool is read-only by design (no `s3:PutObject`).
+- **Clipboard warning** — `share` copies the pre-signed URL when system clipboard support is available, then prints the URL to stdout.
+- **Firefly handoff is local by default** — the CLI downloads the selected S3 object to a transient local file and passes that path to Firefly. It does not expose bucket credentials or generate remote URLs for Firefly.
 
 -----
 
 ## Non-Goals (v1)
 
-- **No upload or delete operations** — read-only tool; no `s3:PutObject`, `s3:DeleteObject`
-- **No recursive download** — use `aws s3 sync` for that
-- **No full file render** — quicklook reads headers/schema only; not a FITS image viewer
+- **No upload or delete** — read-only; no `s3:PutObject`, `s3:DeleteObject`
+- **No recursive download** — use `aws s3 sync`
+- **No full file render** — quicklook reads headers/schema only; not FITS image viewer
 - **No bucket creation or policy management**
 - **No Windows support** — macOS and Linux only in v1; PRs welcome
 - **No auth management** — does not create or rotate AWS credentials
@@ -464,17 +494,16 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 
 |#|Question                                                                                                  |Blocking?                                       |Owner   |
 |-|----------------------------------------------------------------------------------------------------------|------------------------------------------------|--------|
-|1|Should `s3peek browse` support paginating >10k objects with a spinner, or just limit to first `page_size`?|No — default to limit; add pagination in v2     |Emmanuel|
-|2|`qrcode` extra for `--qr` flag: include in default install or opt-in extra?                               |No — make it an extra: `pip install s3peek[qr]` |Emmanuel|
+|1|Should `s3peek browse` support paginating >10k objects with spinner, or limit to first `page_size`?|No — default to limit; add pagination in v2     |Emmanuel|
+|2|`qrcode` extra for `--qr` flag: include in default install or opt-in extra?                               |No — make it extra: `pip install s3peek[qr]` |Emmanuel|
 |3|Should FITS quicklook display WCS (World Coordinate System) summary if present?                           |No — nice-to-have for v2                        |open    |
-|4|For ASDF files from Roman pipeline: should `asdf-astropy` be a hard dep or optional?                      |No — optional extra: `pip install s3peek[astro]`|Emmanuel|
+|4|For ASDF files from Roman pipeline: should `asdf-astropy` be hard dep or optional?                      |No — optional extra: `pip install s3peek[astro]`|Emmanuel|
 
 -----
 
 ## Agent Build Instructions
 
-> This section is the authoritative build specification.
-> A coding agent should implement this tool end-to-end using only this README — no clarifying questions needed.
+> Authoritative build spec. Implement end-to-end using only this README — no clarifying questions needed.
 
 ### Build Order
 
@@ -512,12 +541,12 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 - Python 3.11+ only. No `match` on Python < 3.10; use 3.11+ syntax freely.
 - Range-GET for FITS: read first `65536` bytes (configurable via `--max-bytes`). Parse with `astropy.io.fits.open(BytesIO(...))` + `ignore_missing_end=True`.
 - ASDF range-GET: read first `65536` bytes; open with `asdf.open(BytesIO(...), lazy_load=True, copy_arrays=False)`.
-- Parquet range-GET: use `pyarrow.parquet.ParquetFile(pa.BufferReader(bytes))` — reads footer from end; for range-GET, fetch last 65536 bytes (footer is at end of file in Parquet format).
-- JSON: fetch first `65536` bytes; parse with `json.loads`; on parse failure try `json.JSONDecoder().raw_decode()` for streaming objects.
+- Parquet range-GET: use `pyarrow.parquet.ParquetFile(pa.BufferReader(bytes))` — reads footer from end; for range-GET, fetch last 65536 bytes (footer at end of file in Parquet format).
+- JSON: fetch first `65536` bytes; parse with `json.loads`; on failure try `json.JSONDecoder().raw_decode()` for streaming objects.
 - Pre-signed URL expiry: parse `Xd`/`Xh`/`Xm` → seconds. Cap at `604800` (7 days). Error on invalid format.
-- Clipboard: use `pyperclip`; catch `pyperclip.PyperclipException` and fall back to stdout-only with a warning.
+- Clipboard: use `pyperclip`; catch `pyperclip.PyperclipException`, fall back to stdout-only with warning.
 - Tests must use `moto` (`@mock_aws` decorator). No real boto3 calls in tests.
-- All public functions must have typed signatures and docstrings.
+- All public functions: typed signatures + docstrings.
 - `ruff` + `mypy` must pass at zero warnings.
 
 ### Acceptance Criteria
@@ -525,12 +554,12 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 - [ ] `make test` passes with ≥ 80% coverage
 - [ ] `make lint` passes (`ruff check` + `mypy --strict`)
 - [ ] `s3peek peek s3://test-bucket/sample.fits` prints HDU table to stdout
-- [ ] `s3peek share s3://test-bucket/sample.fits --no-clipboard` prints a valid pre-signed URL
-- [ ] `s3peek share s3://test-bucket/sample.fits --expires 8d` exits with code 1 and error on stderr
+- [ ] `s3peek share s3://test-bucket/sample.fits` prints valid pre-signed URL
+- [ ] `s3peek share s3://test-bucket/sample.fits --expiry bad` exits code 1 with error on stderr
 - [ ] `s3peek browse s3://test-bucket/` launches TUI without crash (manual check)
-- [ ] `make build-binary` produces a standalone executable that runs on macOS and Linux
+- [ ] `make build-binary` produces standalone executable on macOS and Linux
 - [ ] `brew install --build-from-source Formula/s3peek.rb` succeeds locally
-- [ ] All Open Questions resolved or explicitly deferred to v2 in CHANGELOG
+- [ ] All Open Questions resolved or deferred to v2 in CHANGELOG
 
 -----
 
