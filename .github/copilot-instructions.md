@@ -147,6 +147,6 @@ Tests **never** touch real AWS — `moto[s3]` intercepts all boto3 calls.
 
 - [ ] `make lint` passes (ruff + mypy --strict).
 - [ ] `make test` passes (all existing tests green).
-- [ ] New behaviour is covered by a test.
+- [ ] New behavior is covered by a test.
 - [ ] `CHANGELOG.md` updated with a one-line entry under `Unreleased`.
 - [ ] If a new reader is added, the `CONTRIBUTING.md` table is updated.
