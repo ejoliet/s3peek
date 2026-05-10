@@ -14,7 +14,7 @@ S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / P
 1. **HTTP Range-GET only for quicklook — never full-object download.**
    Reason: FITS/ASDF/Parquet files routinely hit 1–100 GB. Full GETs blow egress budgets, freeze the TUI, and defeat the purpose of "peek".
    Blast: surprise AWS egress bill, frozen UI on large files, user abandons tool.
-1. **AWS region pinned to `us-east-1`, account `765894972596` (default profile)** — never rely on boto3 region auto-resolve.
+1. **AWS region pinned to `us-east-1`, account `<AWS_ACCOUNT_ID>` (default profile)** — never rely on boto3 region auto-resolve.
    Reason: IRSA + Roman SSC buckets live there; cross-region requests silently fail or 403.
    Blast: confusing IAM denials, cross-region transfer cost spike.
 1. **Python 3.12+ only.**
@@ -62,7 +62,7 @@ S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / P
 
 - Lang: Python 3.12 · Pkg: uv · Test: pytest -q · Lint: ruff
 - TUI: Textual · S3: boto3 (sync, threaded by Textual) · Formats: FITS / ASDF / Parquet headers via Range-GET
-- Cloud: AWS us-east-1 / acct 765894972596 · CI: Jenkins (label `cdms`, Dockerized agent)
+- Cloud: AWS us-east-1 / acct `<AWS_ACCOUNT_ID>` · CI: Jenkins (label `cdms`, Dockerized agent)
 - License: MIT
 
 -----
