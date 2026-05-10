@@ -219,7 +219,7 @@ Reviewers and Copilot should verify:
 - [ ] New exceptions are subclasses of the base class in `exceptions.py`, not raw `Exception`.
 - [ ] Public functions have type annotations and docstrings (one-liner minimum).
 - [ ] Third-party plugin interface (`BaseReader`, `ThemeBase`, `typer.Typer`) is unchanged unless the PR is explicitly an API revision.
-- [ ] `moto` is used for all S3 interactions in tests — no live AWS calls.
+- [ ] `moto` is used for all S3 interactions in tests — `mock_aws()` context manager from `moto` (see `tests/conftest.py`); no live AWS calls.
 - [ ] `CHANGELOG.md` has a one-line entry under `Unreleased`.
 
 ---
@@ -228,7 +228,7 @@ Reviewers and Copilot should verify:
 
 - **No credential storage** — never write AWS keys, tokens, or secrets to disk, environment files committed to the repo, or log output.
 - **Pre-signed URL expiry** — default is `presign_expiry_seconds = 3600`; do not raise the ceiling above 7 days (AWS maximum).
-- **Input validation** — S3 URIs from the user must be parsed and validated before use; reject malformed `s3://` URIs early with a clear error message.
+- **Input validation** — S3 URIs from the user must be parsed and validated before use; reject malformed `s3://` URIs early (e.g., missing bucket name, invalid characters in the key, or an incorrect scheme) with a clear error message.
 - **Dependency pinning** — minimum versions are pinned in `pyproject.toml`; avoid adding dependencies with known CVEs (check the GitHub Advisory Database before adding).
 - **No shell injection** — never pass user-supplied strings to `subprocess`, `os.system`, or shell=True invocations.
 - **Clipboard output only** — pre-signed URLs are written to the clipboard and/or stdout. They are never logged to a file.
@@ -245,5 +245,5 @@ Reviewers and Copilot should verify:
   - `s3:GetObjectAttributes` for stat operations.
   - No write permissions are required or used.
 - **VPC / private buckets** — works transparently when the environment has a VPC endpoint for S3 or appropriate routing; no special configuration needed in s3peek.
-- **Moto mock** — all tests use `moto[s3]` with `@mock_aws`. The fixture in `tests/conftest.py` creates a fresh bucket per test. Real AWS is never contacted during `make test`.
+- **Moto mock** — all tests use `moto[s3]` with the `mock_aws()` context manager (from `moto import mock_aws`). The fixture in `tests/conftest.py` creates a fresh bucket per test. Real AWS is never contacted during `make test`.
 - **Pre-signed URLs** — generated via `boto3` `generate_presigned_url`; expiry defaults to 3600 s and is configurable. The URL is signed with whichever credentials boto3 resolved at runtime.
