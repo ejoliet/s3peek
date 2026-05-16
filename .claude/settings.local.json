@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest --collect-only -q)",
+      "Bash(rtk grep *)",
+      "Bash(rtk read *)",
+      "Bash(rtk ls *)",
+      "Bash(.venv/bin/python -m pytest tests/test_cli.py tests/test_firefly.py -v --tb=short)",
+      "mcp__plugin_oh-my-claudecode_t__state_list_active",
+      "mcp__plugin_oh-my-claudecode_t__state_clear",
+      "Bash(rtk git *)",
+      "Bash(rtk find *)",
+      "Bash(xargs cat)",
+      "Bash(rtk pytest *)",
+      "Bash(rtk wc *)"
+    ]
+  }
+}
