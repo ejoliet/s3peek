@@ -99,11 +99,13 @@ make test
 make test-cov
 
 # Run a single test file
-python -m pytest tests/test_plugins.py -v
+uv run pytest tests/test_plugins.py -v
 
 # Run only non-skipped tests
-python -m pytest -v --ignore=tests/test_s3.py
+uv run pytest -v --ignore=tests/test_s3.py
 ```
+
+> Always use `uv run` — never bare `python` or `pytest`. The project venv is isolated; system/global Python must not be touched.
 
 ---
 
