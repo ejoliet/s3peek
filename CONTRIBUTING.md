@@ -20,7 +20,7 @@ class MyFormatReader:
     def can_read(self, key: str, first_bytes: bytes) -> bool:
         return key.endswith(self.extensions) or first_bytes[:4] == b"MYFM"
 
-    def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
+    def read(self, data: bytes, *, max_headers: int = 1, **_kwargs: object) -> HeaderResult:
         headers = [{"field1": "...", "field2": "..."}]
         return HeaderResult(format="myformat", headers=headers[:max_headers])
 ```
@@ -33,7 +33,7 @@ class MyFormatReader:
 myformat = "my_package.reader:MyFormatReader"
 ```
 
-After `pip install my-package`, run `s3peek peek s3://bucket/file.myext` — your reader
+After `uv pip install my-package`, run `uv run s3peek peek s3://bucket/file.myext` — your reader
 is used automatically. No changes to s3peek are required.
 
 ### 3. Test your reader
