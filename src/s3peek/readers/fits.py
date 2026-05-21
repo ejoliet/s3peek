@@ -16,7 +16,7 @@ class FITSReader:
     def can_read(self, key: str, first_bytes: bytes) -> bool:
         return first_bytes[:9] == b"SIMPLE  =" or key.lower().endswith(self.extensions)
 
-    def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
+    def read(self, data: bytes, *, max_headers: int = 1, **_kwargs: object) -> HeaderResult:
         cards: dict[str, object] = {}
         limit = min(len(data), _BLOCK_LEN * max_headers)
         for offset in range(0, limit, _CARD_LEN):

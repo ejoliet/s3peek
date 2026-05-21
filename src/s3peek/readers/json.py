@@ -12,7 +12,7 @@ class JSONReader:
     def can_read(self, key: str, first_bytes: bytes) -> bool:
         return key.lower().endswith(self.extensions)
 
-    def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
+    def read(self, data: bytes, *, max_headers: int = 1, **_kwargs: object) -> HeaderResult:
         obj = json.loads(data)
         if isinstance(obj, dict):
             hdr: dict[str, object] = {str(k): str(v) for k, v in obj.items()}

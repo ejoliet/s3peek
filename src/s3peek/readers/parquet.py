@@ -12,7 +12,7 @@ class ParquetReader:
     def can_read(self, key: str, first_bytes: bytes) -> bool:
         return first_bytes[:4] == b"PAR1" or key.lower().endswith(self.extensions)
 
-    def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult:
+    def read(self, data: bytes, *, max_headers: int = 1, **_kwargs: object) -> HeaderResult:
         import pyarrow.parquet as pq
 
         try:

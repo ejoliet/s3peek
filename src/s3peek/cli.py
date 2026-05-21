@@ -42,29 +42,49 @@ def browse(
 
 @app.command()
 def peek(
-    uri: Annotated[str, typer.Argument(help="S3 URI of a single object.")],
+    uri: Annotated[str, typer.Argument(help="S3 URI (s3://bucket/key) or local file path.")],
     output: Annotated[str, typer.Option("--output", "-o", help="text or json")] = "text",
     max_hdus: Annotated[int, typer.Option("--max-hdus", help="Max HDUs to show")] = 1,
+    deep: Annotated[
+        bool, typer.Option("--deep", help="Full header extraction (ASDF: uses asdf lib)")
+    ] = False,
 ) -> None:
-    """Inspect headers of a single S3 object."""
-    bucket, key = parse_s3_uri(uri)
-    cfg = Config.load()
-    client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
-    meta = client.stat_object(bucket, key)
-    data = client.range_get(bucket, key, length=cfg.max_range_get_bytes)
-    result = quicklook(data, key, max_headers=max_hdus)
+    """Inspect headers of an S3 object or local file."""
+    from pathlib import Path
+
+    if uri.startswith("s3://"):
+        bucket, key = parse_s3_uri(uri)
+        cfg = Config.load()
+        client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
+        meta = client.stat_object(bucket, key)
+        data = client.range_get(bucket, key, length=cfg.max_range_get_bytes)
+        label = f"s3://{bucket}/{key}"
+        size: int | None = meta.size
+    else:
+        path = Path(uri)
+        if not path.exists():
+            typer.echo(f"Error: file not found: {uri}", err=True)
+            raise typer.Exit(1)
+        key = path.name
+        data = path.read_bytes()
+        label = str(path)
+        size = path.stat().st_size
+
+    result = quicklook(data, key, max_headers=max_hdus, deep=deep)
     if output == "json":
         typer.echo(
             json.dumps(
                 {
                     "format": result.format,
-                    "size": meta.size,
+                    "size": size,
+                    "source": label,
                     "headers": result.headers,
-                }
+                },
+                default=str,
             )
         )
     else:
-        typer.echo(f"Format: {result.format}  Size: {meta.size}  s3://{bucket}/{key}")
+        typer.echo(f"Format: {result.format}  Size: {size}  {label}")
         for i, hdr in enumerate(result.headers):
             if len(result.headers) > 1:
                 typer.echo(f"--- HDU {i} ---")
