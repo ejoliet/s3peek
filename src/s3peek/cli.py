@@ -57,6 +57,14 @@ def peek(
         cfg = Config.load()
         client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
         meta = client.stat_object(bucket, key)
+        if deep and meta.size and meta.size > cfg.max_range_get_bytes:
+            typer.echo(
+                f"Error: --deep requires a complete ASDF stream but {key!r} is "
+                f"{meta.size:,} bytes (max_range_get_bytes={cfg.max_range_get_bytes}). "
+                "Increase max_range_get_bytes in config or run peek on a local copy.",
+                err=True,
+            )
+            raise typer.Exit(1)
         data = client.range_get(bucket, key, length=cfg.max_range_get_bytes)
         label = f"s3://{bucket}/{key}"
         size: int | None = meta.size
