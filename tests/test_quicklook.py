@@ -90,3 +90,51 @@ def test_quicklook_asdf_deep_flag() -> None:
     result = quicklook(data, "file.asdf", deep=True)
     assert result.format == "asdf"
     assert "nested" in result.headers[0]
+
+
+def test_asdf_deep_numpy_array_summarized() -> None:
+    """Arrays must never be expanded element-wise — regression test for recursion bomb."""
+    import io
+
+    import asdf
+    import numpy as np
+
+    from s3peek.readers.asdf import ASDFReader
+
+    arr = np.zeros((100, 100), dtype="float32")
+    buf = io.BytesIO()
+    with asdf.AsdfFile({"data": arr}) as af:
+        af.write_to(buf)
+    data = buf.getvalue()
+
+    result = ASDFReader().read(data, deep=True)
+    array_node = result.headers[0]["data"]
+    assert isinstance(array_node, dict), "array must be summarized, not expanded"
+    assert array_node["__ndarray__"] is True
+    assert array_node["shape"] == [100, 100]
+    assert "float" in array_node["dtype"]
+
+
+def test_asdf_deep_tagged_list_preserved() -> None:
+    """TaggedList contents must be preserved, not silently emptied."""
+    import io
+
+    import asdf
+
+    from s3peek.readers.asdf import ASDFReader
+
+    buf = io.BytesIO()
+    with asdf.AsdfFile({"steps": ["a", "b", "c"]}) as af:
+        af.write_to(buf)
+    data = buf.getvalue()
+
+    result = ASDFReader().read(data, deep=True)
+    assert result.headers[0]["steps"] == ["a", "b", "c"]
+
+
+def test_asdf_deep_error_surfaced() -> None:
+    """Truncated/corrupt bytes must return _parse_error key, not silent empty dict."""
+    from s3peek.readers.asdf import ASDFReader
+
+    result = ASDFReader().read(b"#ASDF 1.0.0\ntruncated", deep=True)
+    assert "_parse_error" in result.headers[0]
