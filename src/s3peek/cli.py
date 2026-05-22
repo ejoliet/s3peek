@@ -202,11 +202,17 @@ def firefly(
     channel: Annotated[str | None, typer.Option("--channel", help="Browser tab channel")] = None,
     open_browser: Annotated[
         bool,
-        typer.Option("--open-browser/--no-open-browser", help="Open Firefly in a browser tab (default: open)"),
+        typer.Option(
+            "--open-browser/--no-open-browser",
+            help="Open Firefly in a browser tab (default: open)",
+        ),
     ] = True,
     preview: Annotated[
         bool | None,
-        typer.Option("--preview/--no-preview", help="Metadata picker (default: auto for ASDF and files >50 MB)"),
+        typer.Option(
+            "--preview/--no-preview",
+            help="Metadata picker (default: auto for ASDF and files >50 MB)",
+        ),
     ] = None,
     title: Annotated[str | None, typer.Option("--title", help="Display title")] = None,
     presign: Annotated[
