@@ -14,5 +14,5 @@
 - `quicklook()` and all readers accept `deep: bool = False` kwarg; FITS/Parquet/JSON readers ignore it via `**_kwargs`
 
 ### Fixed
-- ASDF fast-path reader truncated at 8 KB and silently dropped `asdf_*` keys and nested YAML structures
+- ASDF deep-inspect output now preserves nested YAML/tree structures and `asdf_*`/schema metadata that were previously lost during serialization; the fast-path reader remains a deliberately shallow 8 KB header preview
 - `TaggedDict` (asdf `UserDict` subclass) serialized as `{}` under `json.dumps` — fixed via recursive `_to_plain()` converter
