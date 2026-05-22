@@ -18,3 +18,7 @@ htmlcov/
 .codex/skills/.system/**
 !.codex/prompts/
 !.codex/prompts/**
+
+data_sample/
+# AgentOps session artifacts
+/.agents/

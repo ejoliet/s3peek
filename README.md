@@ -39,7 +39,7 @@
 **Key design decisions:**
 
 - **Range-GET for headers** — FITS/Parquet headers read via HTTP `Range` requests (first N bytes only). No full download.
-- **Streaming ASDF open** — ASDF tree read via `asdf.open()` with `lazy_load=True`; only YAML header block parsed.
+- **ASDF dual-mode read** — fast path: raw YAML parse of first 8 KB (no lib, zero overhead). Deep-inspect path (`--deep`): `asdf.open(_force_raw_types=True)` returns full tree including nested `roman`, `wcs`, and schema metadata; output is JSON-serializable and pipeable to `jq`.
 - **No local state** — no DB, no cache file. All navigation state in-memory per session.
 - **AWS credentials pass-through** — standard boto3 credential chain (`~/.aws`, env vars, instance profile). No credential storage.
 

@@ -107,7 +107,9 @@ def test_firefly_connector_send_uses_show_data_local_path(monkeypatch: pytest.Mo
     assert calls["title"] == "atlas-abell-test.tbl"
 
 
-def test_firefly_connector_show_url_passes_url_to_show_data(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_firefly_connector_show_url_passes_url_to_show_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: dict[str, object] = {}
 
     class FakeClient:

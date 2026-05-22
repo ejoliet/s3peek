@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from re import sub
 from types import SimpleNamespace
 
 import pytest
@@ -28,13 +29,14 @@ def test_help() -> None:
 def test_firefly_help() -> None:
     result = runner.invoke(app, ["firefly", "--help"])
     assert result.exit_code == 0
-    assert "--server" in result.output
-    assert "--channel" in result.output
-    assert "--open-browser" in result.output
-    assert "--preview" in result.output
-    assert "--title" in result.output
-    assert "--presign" in result.output
-    assert "--expiry" in result.output
+    output = sub(r"\x1b\[[0-9;]*m", "", result.output)
+    assert "--server" in output
+    assert "--channel" in output
+    assert "--open-browser" in output
+    assert "--preview" in output
+    assert "--title" in output
+    assert "--presign" in output
+    assert "--expiry" in output
 
 
 def test_firefly_requires_server_or_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -80,7 +82,14 @@ def test_firefly_sends_presigned_url_with_flag(
 
     result = runner.invoke(
         app,
-        ["firefly", "s3://test-bucket/data/image.fits", "--presign", "--preview", "--title", "My FITS"],
+        [
+            "firefly",
+            "s3://test-bucket/data/image.fits",
+            "--presign",
+            "--preview",
+            "--title",
+            "My FITS",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -197,7 +206,11 @@ def test_firefly_auto_preview_asdf(
     monkeypatch.setenv("FIREFLY_URL", "http://localhost:8080/firefly")
     monkeypatch.setenv("FIREFLY_CHANNEL", "science")
     monkeypatch.setenv("S3PEEK_CONFIG", str(tmp_path / "missing.toml"))
-    monkeypatch.setitem(sys.modules, "firefly_client", SimpleNamespace(FireflyClient=FakeFireflyClient))
+    monkeypatch.setitem(
+        sys.modules,
+        "firefly_client",
+        SimpleNamespace(FireflyClient=FakeFireflyClient),
+    )
 
     result = runner.invoke(app, ["firefly", "s3://test-bucket/data/spectrum.asdf"])
 
@@ -229,7 +242,11 @@ def test_firefly_auto_preview_large_file(
     monkeypatch.setenv("FIREFLY_URL", "http://localhost:8080/firefly")
     monkeypatch.setenv("FIREFLY_CHANNEL", "science")
     monkeypatch.setenv("S3PEEK_CONFIG", str(tmp_path / "missing.toml"))
-    monkeypatch.setitem(sys.modules, "firefly_client", SimpleNamespace(FireflyClient=FakeFireflyClient))
+    monkeypatch.setitem(
+        sys.modules,
+        "firefly_client",
+        SimpleNamespace(FireflyClient=FakeFireflyClient),
+    )
 
     from s3peek import s3 as s3_module
 
@@ -269,7 +286,11 @@ def test_firefly_no_preview_overrides_auto(
     monkeypatch.setenv("FIREFLY_URL", "http://localhost:8080/firefly")
     monkeypatch.setenv("FIREFLY_CHANNEL", "science")
     monkeypatch.setenv("S3PEEK_CONFIG", str(tmp_path / "missing.toml"))
-    monkeypatch.setitem(sys.modules, "firefly_client", SimpleNamespace(FireflyClient=FakeFireflyClient))
+    monkeypatch.setitem(
+        sys.modules,
+        "firefly_client",
+        SimpleNamespace(FireflyClient=FakeFireflyClient),
+    )
 
     result = runner.invoke(app, ["firefly", "s3://test-bucket/data/spectrum.asdf", "--no-preview"])
 
