@@ -138,3 +138,49 @@ def test_asdf_deep_error_surfaced() -> None:
 
     result = ASDFReader().read(b"#ASDF 1.0.0\ntruncated", deep=True)
     assert "_parse_error" in result.headers[0]
+
+
+def test_fits_deep_multi_hdu() -> None:
+    """--deep must return multiple HDU headers via astropy."""
+    import io
+
+    import astropy.io.fits
+    import numpy as np
+
+    from s3peek.readers.fits import FITSReader
+
+    primary = astropy.io.fits.PrimaryHDU()
+    primary.header["TELESCOP"] = "Roman"
+    ext = astropy.io.fits.ImageHDU(data=np.zeros((10, 10), dtype="int16"))
+    ext.header["EXTNAME"] = "SCI"
+    buf = io.BytesIO()
+    astropy.io.fits.HDUList([primary, ext]).writeto(buf)
+    data = buf.getvalue()
+
+    result = FITSReader().read(data, max_headers=2, deep=True)
+    assert result.format == "fits"
+    assert len(result.headers) == 2
+    assert result.headers[0].get("TELESCOP") == "Roman"
+    assert result.headers[1].get("EXTNAME") == "SCI"
+
+
+def test_fits_deep_respects_max_headers() -> None:
+    """max_headers must cap HDU count even when more exist."""
+    import io
+
+    import astropy.io.fits
+    import numpy as np
+
+    from s3peek.readers.fits import FITSReader
+
+    hdul = astropy.io.fits.HDUList([
+        astropy.io.fits.PrimaryHDU(),
+        astropy.io.fits.ImageHDU(data=np.zeros((4, 4), dtype="int16")),
+        astropy.io.fits.ImageHDU(data=np.zeros((4, 4), dtype="int16")),
+    ])
+    buf = io.BytesIO()
+    hdul.writeto(buf)
+    data = buf.getvalue()
+
+    result = FITSReader().read(data, max_headers=1, deep=True)
+    assert len(result.headers) == 1

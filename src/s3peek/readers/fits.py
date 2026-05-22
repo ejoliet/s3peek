@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import io
+
 from s3peek.readers import HeaderResult
 
-# AIDEV-NOTE: Raw FITS card parser — no astropy in quicklook path (CLAUDE.md invariant).
+# AIDEV-NOTE: Raw FITS card parser — no astropy in quicklook fast path (CLAUDE.md invariant).
 # FITS header: 80-byte fixed-width records; keyword 8 chars, value indicator '=' at pos 8,
 # value field pos 10–79, comment after '/'. Header ends at END card or 2880-byte block edge.
+# deep=True opt-in: uses astropy.io.fits for full multi-HDU extraction (deep-inspect mode only).
 _CARD_LEN = 80
 _BLOCK_LEN = 2880
 
@@ -16,10 +19,17 @@ class FITSReader:
     def can_read(self, key: str, first_bytes: bytes) -> bool:
         return first_bytes[:9] == b"SIMPLE  =" or key.lower().endswith(self.extensions)
 
-    def read(self, data: bytes, *, max_headers: int = 1, **_kwargs: object) -> HeaderResult:
+    def read(
+        self, data: bytes, *, max_headers: int = 1, deep: bool = False, **_kwargs: object
+    ) -> HeaderResult:
+        if deep:
+            return self._read_deep(data, max_headers)
+        return self._read_fast(data)
+
+    def _read_fast(self, data: bytes) -> HeaderResult:
+        """Raw single-HDU card parse — quicklook hot path, no astropy."""
         cards: dict[str, object] = {}
-        limit = min(len(data), _BLOCK_LEN * max_headers)
-        for offset in range(0, limit, _CARD_LEN):
+        for offset in range(0, len(data), _CARD_LEN):
             card = data[offset : offset + _CARD_LEN]
             if len(card) < _CARD_LEN:
                 break
@@ -35,3 +45,20 @@ class FITSReader:
                 if raw_key:
                     cards[raw_key] = val
         return HeaderResult(format="fits", headers=[cards])
+
+    def _read_deep(self, data: bytes, max_headers: int) -> HeaderResult:
+        """Full multi-HDU extraction via astropy — deep-inspect mode only."""
+        import astropy.io.fits  # AIDEV-NOTE: lazy import — keep out of fast-path module scope
+
+        headers: list[dict[str, object]] = []
+        try:
+            with astropy.io.fits.open(
+                io.BytesIO(data),
+                ignore_missing_simple=True,
+                memmap=False,
+            ) as hdul:
+                for hdu in hdul[:max_headers]:
+                    headers.append(dict(hdu.header))
+        except Exception as exc:
+            headers = [{"_parse_error": f"{type(exc).__name__}: {exc}"}]
+        return HeaderResult(format="fits", headers=headers)
