@@ -54,7 +54,13 @@ def browse(
     uri: Annotated[str, typer.Argument(help="S3 URI, e.g. s3://bucket/prefix/")],
 ) -> None:
     """Open interactive TUI browser."""
-    raise NotImplementedError
+    from s3peek.browser import S3Browser
+
+    cfg = Config.load()
+    bucket, prefix = parse_s3_uri(uri)
+    region = cfg.aws_region or "us-east-1"
+    client = S3Client(profile=cfg.aws_profile, region=region)
+    S3Browser(client=client, cfg=cfg, bucket=bucket, prefix=prefix).run()
 
 
 @app.command()
