@@ -1,0 +1,27 @@
+# s3peek configuration
+# Copy to ~/.config/s3peek/config.toml or set S3PEEK_CONFIG=/path/to/config.toml
+
+# AWS profile name (default: use environment / instance role)
+# aws_profile = "my-profile"
+
+# AWS region — always set this; s3peek defaults to us-east-1
+# aws_region = "us-east-1"
+
+# Default S3 bucket for tab-completion / browse
+# default_bucket = "my-bucket"
+
+# Max bytes fetched for fast-path quicklook Range-GET (default: 64KB)
+# Increase if FITS headers are truncated in fast mode.
+# max_range_get_bytes = 65536
+
+# Pre-signed URL expiry in seconds (default: 1 hour)
+# presign_expiry_seconds = 3600
+
+# UI theme: "dark" or "light"
+# theme = "dark"
+
+# Firefly visualization server URL
+# firefly_url = "http://localhost:8080/firefly"
+
+# Firefly browser channel
+# firefly_channel = "s3peek"

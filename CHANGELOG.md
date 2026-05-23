@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- `s3peek browse s3://bucket[/prefix]` — interactive Textual TUI browser: bucket/prefix navigation, `DataTable` object listing with size and last-modified columns, inline quicklook panel, breadcrumb bar, and status bar.
+- TUI keybindings: `p`=fast peek (Range-GET), `d`=deep-peek (SeekableS3Stream, lazy astropy/asdf), `s`=share+clipboard, `c`=copy S3 URI, `f`=Firefly, `backspace`=up one level, `q`=quit.
+- `list_dir(bucket, prefix)` on `S3Client` — paginates `CommonPrefixes` and `Contents` in one pass, skips zero-byte trailing-slash directory markers, routes errors through existing `_raise_from_client_error`.
+- All TUI boto3 calls run inside `@work(thread=True)` workers; Textual event handlers are non-blocking.
 - `SeekableS3Stream` (`src/s3peek/streams.py`) — seekable file-like object backed by S3 Range-GETs with a 256 KB chunk cache. Enables `--deep` on arbitrarily large S3 files without full download.
 - `peek --deep` on S3 URIs now streams via `SeekableS3Stream` instead of failing when `meta.size > max_range_get_bytes`. astropy and asdf seek through the stream and only fetch the bytes they need.
 - `peek --max-range-bytes INT` flag — per-invocation override for the fast-path Range-GET limit (replaces needing to edit config for one-off large headers).

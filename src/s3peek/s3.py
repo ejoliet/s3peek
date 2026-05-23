@@ -99,6 +99,44 @@ class S3Client:
         except ClientError as exc:
             _raise_from_client_error(exc, bucket=bucket, key=key)
 
+    def list_dir(
+        self,
+        bucket: str,
+        prefix: str,
+    ) -> tuple[list[str], list[ObjectMeta]]:
+        """Return (common_prefixes, objects) for one directory level.
+
+        Uses delimiter='/' to get CommonPrefixes (sub-dirs) and Contents (objects).
+        Paginates fully. Skips zero-byte trailing-slash directory marker keys.
+        Results are in lexicographic order (S3 guarantees within pages; pages are ordered).
+        """
+        paginator = self._s3.get_paginator("list_objects_v2")
+        prefixes: list[str] = []
+        objects: list[ObjectMeta] = []
+        try:
+            for page in paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"):
+                for cp in page.get("CommonPrefixes", []):
+                    p = cp.get("Prefix")
+                    if p:
+                        prefixes.append(p)
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    # Skip zero-byte trailing-slash directory marker keys
+                    if key.endswith("/") and obj["Size"] == 0:
+                        continue
+                    objects.append(
+                        ObjectMeta(
+                            key=key,
+                            size=obj["Size"],
+                            last_modified=obj["LastModified"],
+                            storage_class=obj.get("StorageClass", "STANDARD"),
+                            etag=obj["ETag"].strip('"'),
+                        )
+                    )
+        except ClientError as exc:
+            _raise_from_client_error(exc, bucket=bucket)
+        return prefixes, objects
+
     def sum_prefix_sizes(self, bucket: str, prefix: str) -> dict[str, int]:
         """Return total_bytes and count of objects under prefix."""
         paginator = self._s3.get_paginator("list_objects_v2")
