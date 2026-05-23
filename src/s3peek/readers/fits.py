@@ -20,11 +20,17 @@ class FITSReader:
         return first_bytes[:9] == b"SIMPLE  =" or key.lower().endswith(self.extensions)
 
     def read(
-        self, data: bytes, *, max_headers: int = 1, deep: bool = False, **_kwargs: object
+        self,
+        data: bytes | io.RawIOBase,
+        *,
+        max_headers: int = 1,
+        deep: bool = False,
+        **_kwargs: object,
     ) -> HeaderResult:
         if deep:
             return self._read_deep(data, max_headers)
-        return self._read_fast(data)
+        raw = data if isinstance(data, bytes) else data.read()
+        return self._read_fast(raw)
 
     def _read_fast(self, data: bytes) -> HeaderResult:
         """Raw single-HDU card parse — quicklook hot path, no astropy."""
@@ -46,14 +52,18 @@ class FITSReader:
                     cards[raw_key] = val
         return HeaderResult(format="fits", headers=[cards])
 
-    def _read_deep(self, data: bytes, max_headers: int) -> HeaderResult:
+    def _read_deep(self, data: bytes | io.RawIOBase, max_headers: int) -> HeaderResult:
         """Full multi-HDU extraction via astropy — deep-inspect mode only."""
         import astropy.io.fits  # AIDEV-NOTE: lazy import — keep out of fast-path module scope
 
         headers: list[dict[str, object]] = []
         try:
+            # AIDEV-NOTE: If data is already a seekable stream (SeekableS3Stream),
+            # pass it directly so astropy issues Range-GETs on demand instead of
+            # reading a truncated bytes buffer. BytesIO wrap only for bytes input.
+            stream: io.IOBase = data if isinstance(data, io.IOBase) else io.BytesIO(data)
             with astropy.io.fits.open(
-                io.BytesIO(data),
+                stream,
                 ignore_missing_simple=True,
                 memmap=False,
             ) as hdul:

@@ -322,3 +322,39 @@ def test_du() -> None:
 def test_share() -> None:
     result = runner.invoke(app, ["share", "s3://bucket/file.fits"])
     assert result.exit_code == 0
+
+
+def test_peek_deep_uses_seekable_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    """peek --deep on S3 must use SeekableS3Stream, not a capped Range-GET."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    import s3peek.cli as cli_module
+
+    fake_meta = SimpleNamespace(size=200_000, key="data/image.fits")
+
+    fake_client = MagicMock()
+    fake_client.stat_object.return_value = fake_meta
+
+    stream_instance = MagicMock()
+    stream_instance.__class__ = __import__(
+        "s3peek.streams", fromlist=["SeekableS3Stream"]
+    ).SeekableS3Stream
+    stream_instance.read.return_value = b""
+
+    fake_result = SimpleNamespace(format="fits", headers=[{"SIMPLE": "T"}])
+
+    with (
+        patch.object(cli_module, "S3Client", return_value=fake_client),
+        patch("s3peek.streams.SeekableS3Stream") as MockStream,
+        patch.object(cli_module, "quicklook", return_value=fake_result),
+    ):
+        MockStream.return_value = stream_instance
+        result = runner.invoke(
+            app, ["peek", "--deep", "s3://test-bucket/data/image.fits"]
+        )
+
+    assert result.exit_code == 0, result.output
+    MockStream.assert_called_once_with(
+        fake_client, "test-bucket", "data/image.fits", size=200_000
+    )

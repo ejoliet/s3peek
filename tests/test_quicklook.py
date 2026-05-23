@@ -164,6 +164,19 @@ def test_fits_deep_multi_hdu() -> None:
     assert result.headers[1].get("EXTNAME") == "SCI"
 
 
+def test_quicklook_with_bytesio_stream_returns_header_result() -> None:
+    import io
+
+    from s3peek.quicklook import quicklook
+    from s3peek.readers import HeaderResult
+
+    data = b"SIMPLE  = T" + b" " * 69
+    stream = io.BytesIO(data)
+    result = quicklook(stream, "image.fits")
+    assert isinstance(result, HeaderResult)
+    assert result.format == "fits"
+
+
 def test_fits_deep_respects_max_headers() -> None:
     """max_headers must cap HDU count even when more exist."""
     import io

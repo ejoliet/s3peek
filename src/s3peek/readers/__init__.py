@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
@@ -16,4 +17,4 @@ class BaseReader(Protocol):
     priority: int
 
     def can_read(self, key: str, first_bytes: bytes) -> bool: ...
-    def read(self, data: bytes, *, max_headers: int = 1) -> HeaderResult: ...
+    def read(self, data: bytes | io.RawIOBase, *, max_headers: int = 1) -> HeaderResult: ...

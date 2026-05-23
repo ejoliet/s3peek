@@ -18,11 +18,17 @@ class ASDFReader:
         return first_bytes[:5] == b"#ASDF" or key.lower().endswith(self.extensions)
 
     def read(
-        self, data: bytes, *, max_headers: int = 1, deep: bool = False, **_kwargs: object
+        self,
+        data: bytes | io.RawIOBase,
+        *,
+        max_headers: int = 1,
+        deep: bool = False,
+        **_kwargs: object,
     ) -> HeaderResult:
         if deep:
             return self._read_deep(data)
-        return self._read_fast(data)
+        raw = data if isinstance(data, bytes) else data.read()
+        return self._read_fast(raw)
 
     def _read_fast(self, data: bytes) -> HeaderResult:
         """Lightweight raw YAML parse — quicklook hot path, no asdf lib."""
@@ -45,7 +51,7 @@ class ASDFReader:
             tree["_parse_error"] = error
         return HeaderResult(format="asdf", headers=[tree])
 
-    def _read_deep(self, data: bytes) -> HeaderResult:
+    def _read_deep(self, data: bytes | io.RawIOBase) -> HeaderResult:
         """Full header extraction via asdf.open() — deep-inspect mode only."""
         import asdf  # AIDEV-NOTE: lazy import — keep out of fast-path module scope
 
@@ -55,8 +61,11 @@ class ASDFReader:
             # inspector; array blocks must never be materialized into memory.
             # _force_raw_types=True keeps tagged objects as TaggedDict/TaggedList
             # so _to_plain can detect them via _tag without loading converters.
+            # If data is already a seekable stream (SeekableS3Stream), pass it directly
+            # so asdf issues Range-GETs on demand instead of reading a truncated buffer.
+            stream: io.IOBase = data if isinstance(data, io.IOBase) else io.BytesIO(data)
             with asdf.open(
-                io.BytesIO(data),
+                stream,
                 mode="r",
                 lazy_load=True,
                 memmap=False,

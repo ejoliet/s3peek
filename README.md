@@ -38,8 +38,9 @@
 
 **Key design decisions:**
 
-- **Range-GET for headers** — FITS/Parquet headers read via HTTP `Range` requests (first N bytes only). No full download.
-- **ASDF dual-mode read** — fast path: raw YAML parse of first 8 KB (no lib, zero overhead). Deep-inspect path (`--deep`): `asdf.open(_force_raw_types=True)` returns full tree including nested `roman`, `wcs`, and schema metadata; output is JSON-serializable and pipeable to `jq`.
+- **Range-GET for headers** — FITS/Parquet headers read via HTTP `Range` requests (first N bytes only, configurable via `max_range_get_bytes`). No full download.
+- **ASDF/FITS dual-mode read** — fast path: raw byte parse of first N KB (no heavy lib, zero overhead). Deep-inspect path (`--deep`): `SeekableS3Stream` issues Range-GETs on demand as astropy/asdf seek through the file — full multi-HDU / full ASDF tree, no full download, works on arbitrarily large files.
+- **SeekableS3Stream** — file-like object backed by S3 Range-GETs with a 256 KB chunk cache. Passed directly to `astropy.io.fits.open()` / `asdf.open()` so libraries only fetch the bytes they actually read.
 - **No local state** — no DB, no cache file. All navigation state in-memory per session.
 - **AWS credentials pass-through** — standard boto3 credential chain (`~/.aws`, env vars, instance profile). No credential storage.
 
@@ -192,6 +193,7 @@ s3peek [OPTIONS] COMMAND [ARGS]
 
 Commands:
   browse   Interactive TUI browser for a bucket or prefix
+  config   Show resolved config file path and current values
   du       Summarize storage usage under an S3 prefix
   firefly  Send an S3 object to a Firefly visualization server
   ls       List objects under an S3 prefix
@@ -232,11 +234,13 @@ TUI keybindings:
 s3peek peek S3_URI [OPTIONS]
 
 Arguments:
-  S3_URI    s3://bucket/key   required
+  S3_URI    s3://bucket/key or local file path   required
 
 Options:
-  --output TEXT      Output format: text or json [default: text]
-  --max-hdus INTEGER Max HDUs to show [default: 1]
+  --output TEXT           Output format: text or json [default: text]
+  --max-hdus INTEGER      Max HDUs to show [default: 1]
+  --deep                  Full header extraction via astropy/asdf (S3: streams via Range-GETs, no full download)
+  --max-range-bytes INT   Override max bytes for fast-path Range-GET (default: max_range_get_bytes from config)
 
 Exit codes:
   0   success

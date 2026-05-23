@@ -32,6 +32,23 @@ def version() -> None:
     typer.echo(s3peek.__version__)
 
 
+@app.command(name="config")
+def config_show() -> None:
+    """Show resolved config and config file path."""
+    import os
+    from pathlib import Path
+
+    from s3peek.config import _DEFAULT_CONFIG_PATH
+
+    cfg = Config.load()
+    path = Path(os.environ.get("S3PEEK_CONFIG", str(_DEFAULT_CONFIG_PATH)))
+    status = "exists" if path.exists() else "not found — using defaults"
+    typer.echo(f"Config file: {path} ({status})")
+    typer.echo("")
+    for field, value in cfg.model_dump().items():
+        typer.echo(f"  {field} = {value!r}")
+
+
 @app.command()
 def browse(
     uri: Annotated[str, typer.Argument(help="S3 URI, e.g. s3://bucket/prefix/")],
@@ -48,24 +65,28 @@ def peek(
     deep: Annotated[
         bool, typer.Option("--deep", help="Full header extraction (ASDF: uses asdf lib)")
     ] = False,
+    max_range_bytes: Annotated[
+        int | None,
+        typer.Option("--max-range-bytes", help="Override max bytes for Range-GET fast path"),
+    ] = None,
 ) -> None:
     """Inspect headers of an S3 object or local file."""
     from pathlib import Path
+
+    from s3peek.streams import SeekableS3Stream
 
     if uri.startswith("s3://"):
         bucket, key = parse_s3_uri(uri)
         cfg = Config.load()
         client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
         meta = client.stat_object(bucket, key)
-        if deep and meta.size and meta.size > cfg.max_range_get_bytes:
-            typer.echo(
-                f"Error: --deep requires a complete ASDF stream but {key!r} is "
-                f"{meta.size:,} bytes (max_range_get_bytes={cfg.max_range_get_bytes}). "
-                "Increase max_range_get_bytes in config or run peek on a local copy.",
-                err=True,
+        if deep:
+            data: bytes | SeekableS3Stream = SeekableS3Stream(
+                client, bucket, key, size=meta.size
             )
-            raise typer.Exit(1)
-        data = client.range_get(bucket, key, length=cfg.max_range_get_bytes)
+        else:
+            range_limit = max_range_bytes or cfg.max_range_get_bytes
+            data = client.range_get(bucket, key, length=range_limit)
         label = f"s3://{bucket}/{key}"
         size: int | None = meta.size
     else:
