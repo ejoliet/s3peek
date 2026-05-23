@@ -12,7 +12,7 @@
 
 # Max bytes fetched for fast-path quicklook Range-GET (default: 64KB)
 # Increase if FITS headers are truncated in fast mode.
-max_range_get_bytes = 165530
+#max_range_get_bytes = 165530
 
 # Pre-signed URL expiry in seconds (default: 1 hour)
 # presign_expiry_seconds = 3600
@@ -21,7 +21,7 @@ max_range_get_bytes = 165530
 # theme = "dark"
 
 # Firefly visualization server URL
-# firefly_url = "http://localhost:8080/firefly"
+firefly_url = "http://localhost:8081/firefly"
 
 # Firefly browser channel
 # firefly_channel = "s3peek"
