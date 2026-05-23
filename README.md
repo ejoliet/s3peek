@@ -216,21 +216,20 @@ Options:
 #### `s3peek browse`
 
 ```
-s3peek browse S3_URI [OPTIONS]
+s3peek browse S3_URI
 
 Arguments:
   S3_URI    s3://bucket[/prefix]  required
 
-Options:
-  --page-size INT   Objects per page [default: 200]
-
 TUI keybindings:
   ↑ / ↓          Navigate list
-  Enter           Descend into prefix / open peek for object
+  Enter           Descend into prefix / auto-peek object
   Backspace       Go up one prefix level
-  p               Peek selected object (header quicklook)
-  s               Share selected object (pre-signed URL)
-  /               Filter (fuzzy, case-insensitive)
+  p               Peek selected object (fast header quicklook via Range-GET)
+  d               Deep-peek selected object (full header via SeekableS3Stream)
+  s               Share — generate pre-signed URL, copy to clipboard
+  c               Copy s3:// URI of selected object to clipboard
+  f               Send to Firefly visualization server (requires firefly_url config)
   q               Quit
 ```
 
@@ -526,7 +525,7 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 |2    |Quicklook engine (`quicklook.py`)      |`test_quicklook.py` passes for all 4 formats against fixtures          |
 |3    |Presign module (`presign.py`)          |`test_presign.py` passes; clipboard copy mocked; expiry parsing correct|
 |4    |CLI commands (`cli.py`) — non-TUI first|`test_cli.py` passes for `peek`, `share`, `ls`, `version`              |
-|5    |TUI browser (`browser.py`)             |Manual smoke test: arrow navigation + `p`/`s` keys work                |
+|5    |TUI browser (`browser.py`)             |**Done** — `s3peek browse s3://bucket/prefix/` navigates, peek/deep-peek/share/copy/firefly keybindings work; 88 tests pass |
 |6    |Build + packaging                      |`make build-binary` succeeds; `brew install` from local formula        |
 
 ### File Map
@@ -538,7 +537,7 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 |`src/s3peek/streams.py`  |Seekable S3-backed file-like object          |`SeekableS3Stream(io.RawIOBase)`                                                |
 |`src/s3peek/quicklook.py`|Format dispatch; accepts bytes or stream     |`quicklook(data: bytes \| io.RawIOBase, ...)`                                   |
 |`src/s3peek/presign.py`  |URL generation + expiry parsing + clipboard  |`generate_presigned_url()`, `parse_expiry()`, `copy_to_clipboard()`             |
-|`src/s3peek/browser.py`  |Textual TUI app and widget                   |`S3Browser(App)`, `ObjectList(Widget)`                                          |
+|`src/s3peek/browser.py`  |Textual TUI app: navigation, listing, quicklook panel|`S3Browser(App)`, `Entry`, `ListingReady`, `QuicklookReady`, `list_dir()`     |
 |`src/s3peek/cli.py`      |Typer app; all commands                      |`app = typer.Typer()`, `browse`, `peek`, `share`, `ls`, `version`               |
 |`tests/conftest.py`      |moto fixtures; fixture file upload           |`s3_client`, `populated_bucket`                                                 |
 |`tests/test_s3.py`       |S3 layer tests                               |`test_list_prefix`, `test_range_get`                                            |
@@ -578,20 +577,25 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 
 ## Next Steps
 
-Ordered agent task list:
+### Completed
 
-1. `git init s3peek && cd s3peek` — initialise repo
-1. Create `pyproject.toml` with deps: `typer`, `textual`, `boto3`, `astropy`, `asdf`, `pyarrow`, `pyperclip`, `pydantic`, `tomli`; dev deps: `moto[s3]`, `pytest`, `pytest-cov`, `ruff`, `mypy`
-1. Scaffold directory tree per **Repository Layout**
-1. Create `fixtures/` with minimal valid sample files (use `astropy`, `asdf`, `pyarrow` to generate)
-1. Implement `config.py` → pass `test_config.py`
-1. Implement `s3.py` → pass `test_s3.py`
-1. Implement `quicklook.py` → pass `test_quicklook.py` for all 4 formats
-1. Implement `presign.py` → pass `test_presign.py`
-1. Implement `cli.py` (non-TUI commands first) → pass `test_cli.py`
-1. Implement `browser.py` (Textual TUI) → manual smoke test
-1. Write `Makefile` with `lint`, `test`, `test-cov`, `build-binary`, `brew-bump` targets
-1. Set up `.github/workflows/ci.yml` (test matrix: macOS + ubuntu, Python 3.11/3.12)
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| 0 | Repo scaffold + CI skeleton | Done |
+| 1 | S3 abstraction layer (`s3.py`) | Done |
+| 2 | Quicklook engine (`quicklook.py`) | Done |
+| 3 | Presign module (`presign.py`) | Done |
+| 4 | CLI commands (`cli.py`) | Done |
+| 5 | TUI browser (`browser.py`) | Done — PR #11 |
+
+### Upcoming
+
+| # | Feature | Notes |
+|---|---------|-------|
+| 6 | **Column sorting in TUI** — sort object listing by file size or last-modified date | `s` key conflicts; use `S` (capital) or dedicated sort-cycle binding. `DataTable` sort via `sort()` with `key=` lambda on `Entry.size` / `Entry.last_modified`. Toggle asc/desc on repeated press. |
+| 7 | Filter / fuzzy search in browser | `/` key → Input widget overlaid on DataTable; filter `Entry.name` in-memory |
+| 8 | Build + packaging | `make build-binary` → standalone executable; Homebrew formula |
+| 9 | LocalStack integration tests | Optional CI stage; moto covers unit tests |
 1. Set up `.github/workflows/release.yml` (tag → PyPI publish + binary upload + formula bump)
 1. Write `Formula/s3peek.rb` template; validate with `brew audit`
 1. Resolve all Open Questions; update CHANGELOG
