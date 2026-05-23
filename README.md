@@ -60,7 +60,8 @@ s3peek/
 │       ├── __init__.py
 │       ├── cli.py             # Typer app: entry point, top-level commands
 │       ├── browser.py         # Textual TUI: bucket/prefix navigation widget
-│       ├── quicklook.py       # Header readers per format (FITS, ASDF, Parquet, JSON)
+│       ├── quicklook.py       # Format dispatch; accepts bytes or seekable stream
+│       ├── streams.py         # SeekableS3Stream: Range-GET-backed file-like object
 │       ├── presign.py         # Pre-signed URL generation + clipboard copy
 │       ├── s3.py              # S3 abstraction: list, stat, range-GET
 │       └── config.py          # Config model: defaults, env var bindings
@@ -171,12 +172,17 @@ All settings via env var or `~/.config/s3peek/config.toml`.
 |`FIREFLY_CHANNEL`    |string|unset  |Firefly browser channel override                                |
 |`S3PEEK_CONFIG`      |string|unset  |Path to config TOML; defaults to `~/.config/s3peek/config.toml`  |
 
+Run `s3peek config` to see the resolved config file path and all current values.
+
+A fully commented template is at [`docs/config.toml.sample`](docs/config.toml.sample).
+
 `~/.config/s3peek/config.toml` example:
 
 ```toml
 aws_profile = "roman-dev"
 aws_region = "us-east-1"
 presign_expiry_seconds = 3600
+# max bytes fetched for fast-path quicklook (--deep bypasses this via streaming)
 max_range_get_bytes = 65536
 firefly_url = "http://localhost:8080/firefly"
 firefly_channel = "my-session"
@@ -423,12 +429,14 @@ pytest tests/test_quicklook.py -v
 
 ### Test matrix
 
-|Suite              |Scope                                         |Fixtures                                   |
-|-------------------|----------------------------------------------|-------------------------------------------|
-|`test_s3.py`       |list, stat, range-GET                         |moto S3 mock; `fixtures/` uploaded at setup|
-|`test_quicklook.py`|all four format readers                       |`fixtures/sample.{fits,asdf,parquet,json}` |
-|`test_presign.py`  |URL generation, expiry parsing, clipboard skip|moto + monkeypatched pyperclip             |
-|`test_cli.py`      |CLI smoke paths including Firefly local handoff|moto + Typer CliRunner + fake Firefly     |
+|Suite                  |Scope                                           |Fixtures                                   |
+|-----------------------|------------------------------------------------|-------------------------------------------|
+|`test_s3.py`           |list, stat, range-GET                           |moto S3 mock; `fixtures/` uploaded at setup|
+|`test_quicklook.py`    |all four format readers; stream input           |`fixtures/sample.{fits,asdf,parquet,json}` |
+|`test_presign.py`      |URL generation, expiry parsing, clipboard skip  |moto + monkeypatched pyperclip             |
+|`test_cli.py`          |CLI smoke paths; `--deep` streaming, `--max-range-bytes`|moto + Typer CliRunner              |
+|`test_streams.py`      |SeekableS3Stream seek/read/cache/EOF/guard      |mocked `S3Client.range_get`                |
+|`test_deep_readers.py` |FITSReader/ASDFReader `_read_deep` with stream  |`BytesIO` fixtures                         |
 
 **Constraint:** Tests must never hit real AWS endpoints. `moto` mocking mandatory.
 
@@ -527,7 +535,8 @@ curl -fsSL https://github.com/ejoliet/s3peek/releases/latest/download/s3peek-lin
 |-------------------------|---------------------------------------------|--------------------------------------------------------------------------------|
 |`src/s3peek/config.py`   |Pydantic config model; env var + TOML loading|`class Config(BaseModel)`                                                       |
 |`src/s3peek/s3.py`       |S3 list, stat, range-GET via boto3           |`list_prefix()`, `stat_object()`, `range_get()`                                 |
-|`src/s3peek/quicklook.py`|Format dispatch + four readers               |`quicklook()`, `_read_fits()`, `_read_asdf()`, `_read_parquet()`, `_read_json()`|
+|`src/s3peek/streams.py`  |Seekable S3-backed file-like object          |`SeekableS3Stream(io.RawIOBase)`                                                |
+|`src/s3peek/quicklook.py`|Format dispatch; accepts bytes or stream     |`quicklook(data: bytes \| io.RawIOBase, ...)`                                   |
 |`src/s3peek/presign.py`  |URL generation + expiry parsing + clipboard  |`generate_presigned_url()`, `parse_expiry()`, `copy_to_clipboard()`             |
 |`src/s3peek/browser.py`  |Textual TUI app and widget                   |`S3Browser(App)`, `ObjectList(Widget)`                                          |
 |`src/s3peek/cli.py`      |Typer app; all commands                      |`app = typer.Typer()`, `browse`, `peek`, `share`, `ls`, `version`               |

@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `SeekableS3Stream` (`src/s3peek/streams.py`) — seekable file-like object backed by S3 Range-GETs with a 256 KB chunk cache. Enables `--deep` on arbitrarily large S3 files without full download.
+- `peek --deep` on S3 URIs now streams via `SeekableS3Stream` instead of failing when `meta.size > max_range_get_bytes`. astropy and asdf seek through the stream and only fetch the bytes they need.
+- `peek --max-range-bytes INT` flag — per-invocation override for the fast-path Range-GET limit (replaces needing to edit config for one-off large headers).
+- `s3peek config` subcommand — prints the resolved config file path (with exists/not-found status) and all current field values.
+- `docs/config.toml.sample` — fully commented config template covering all fields.
+
+### Fixed
+- `FITSReader._read_deep()` and `ASDFReader._read_deep()` now accept `bytes | io.IOBase`; `BytesIO` and `SeekableS3Stream` both pass through correctly (was `io.RawIOBase` which rejected `BufferedIOBase` / `BytesIO`).
+- `pyproject.toml` pytest config: added `pythonpath = ["src"]` — fixes `ModuleNotFoundError: No module named 's3peek'` during test collection.
+
 ## [0.1.0] - Unreleased
 
 ### Added
