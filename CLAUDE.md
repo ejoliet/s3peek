@@ -1,6 +1,6 @@
 # s3peek
 
-S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / Parquet via HTTP Range-GET. Read-only by design.
+S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / Parquet / JSON via HTTP Range-GET. Read-only by design.
 
 -----
 
@@ -17,8 +17,8 @@ S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / P
 1. **AWS region pinned to `us-east-1`, account `<AWS_ACCOUNT_ID>` (default profile)** — never rely on boto3 region auto-resolve.
    Reason: IRSA + Roman SSC buckets live there; cross-region requests silently fail or 403.
    Blast: confusing IAM denials, cross-region transfer cost spike.
-1. **Python 3.12+ only.**
-   Reason: relies on `asyncio.TaskGroup`, modern `typing`, and `uv`-managed wheels matching AL2023 Jenkins agent.
+1. **Python 3.11+ only.**
+   Reason: relies on `asyncio.TaskGroup` (3.11+), modern `typing`, and `uv`-managed wheels matching AL2023 Jenkins agent. `pyproject.toml requires-python=">=3.11"`; ruff/mypy target `py311`; classifiers cover 3.11 + 3.12.
    Blast: silent install failure in CI, divergent dev/prod behavior.
 
 > If an instruction below conflicts with an invariant, the invariant wins.
@@ -45,7 +45,7 @@ S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / P
 
 - Confirm plan before code when scope > 1 file (per Emmanuel's RDD discipline).
 - Use `uv` for envs and lockfile — never raw `pip` or `venv`.
-- Run `uv run pytest -q` and `uv run ruff check` before declaring done.
+- Before declaring done: `make test` (`pytest`, moto-mocked S3) and `make lint` (`ruff check src tests` **+ `mypy src` strict**). mypy strict is a hard gate — type-annotate fully. Under `uv`: `uv run make test` / `uv run make lint`.
 - Annotate non-obvious code with `AIDEV-NOTE:` / `AIDEV-TODO:` / `AIDEV-QUESTION:` so future greps land.
 - When a public API or CLI flag changes, update `README.md` AND `docs/agent-context/` in the same commit.
 
@@ -55,9 +55,11 @@ S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / P
 
 
 
-- **Custom FITS / ASDF / Parquet header parsing** — NOT `astropy.io.fits` or full `asdf` library for quicklook fast path. Quicklook reads only the first N KB via Range-GET; pulling in heavy libs defeats the latency goal.
+- **Custom FITS / ASDF / Parquet / JSON header parsing** — NOT `astropy.io.fits` or full `asdf` library for quicklook fast path. Quicklook reads only the first N KB via Range-GET; pulling in heavy libs defeats the latency goal.
   - `_read_fast()` (default): pure-byte, no deps, returns first HDU / fast YAML scan.
   - `_read_deep()` (opt-in, `--deep` flag): lazy-import `astropy.io.fits` (FITS) or `asdf` (ASDF). Multi-HDU / full-tree. Only triggered when user explicitly passes `--deep`.
+  - Four built-in readers registered: `fits`, `asdf`, `parquet`, `json`. `astropy`/`asdf`/`pyarrow` ARE core `dependencies` (not optional extras) — keep them lazy-imported in deep paths, don't move them to `[project.optional-dependencies]`.
+- **Plugin system via `importlib.metadata.entry_points`** (`plugins.py`) — readers and themes are discovered from `[project.entry-points."s3peek.readers"]` / `."s3peek.themes"]`. Add a new format by registering an entry point, not by hardcoding in the dispatcher. Modules: `presign.py` (pre-signed URLs), `firefly.py` (Firefly viz), `themes/`.
 - **Synchronous `boto3` inside Textual event handlers is intentional** — Textual's worker / thread model handles offloading. Do not refactor to `aioboto3` unless benchmarked; mixing two async stacks has burned this before in adjacent IPAC tools.
 - **No local caching layer for quicklook** — "peek" must always reflect live S3 state (objects mutate, lifecycle policies expire). Caching is a feature request, not a default; if added, must be opt-in with explicit TTL.
 - Comments tagged `AIDEV-*` are intentional anchors — preserve when refactoring.
@@ -66,8 +68,9 @@ S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / P
 
 ## Stack (inferred — single line each, no narration)
 
-- Lang: Python 3.12 · Pkg: uv · Test: pytest -q · Lint: ruff
-- TUI: Textual · S3: boto3 (sync, threaded by Textual) · Formats: FITS / ASDF / Parquet headers via Range-GET
+- Lang: Python 3.11+ · Pkg: uv · Test: pytest (moto[s3]) · Lint: ruff + mypy (strict)
+- CLI: typer (7 cmds: browse, peek, share, ls, du, config, firefly) · Config: pydantic v2 + TOML
+- TUI: Textual · S3: boto3 (sync, threaded by Textual) · Formats: FITS / ASDF / Parquet / JSON headers via Range-GET
 - Cloud: AWS us-east-1 / acct `<AWS_ACCOUNT_ID>` · CI: Jenkins (label `cdms`, Dockerized agent)
 - License: MIT
 
@@ -89,7 +92,8 @@ S3 TUI browser for astronomers and data engineers. Quicklook for FITS / ASDF / P
 
 
 
-- Spec / RDD: `README.md`
-- Architecture: `docs/agent-context/architecture.md`
-- Format quicklook strategy: `docs/agent-context/quicklook-strategy.md`
-- Implementation plan: `docs/IMPLEMENTATION_PLAN.md`
+- Spec / quickstart: `README.md`
+- Architecture & API reference: `docs/agent-context/architecture.md`
+- Contributing & plugin development: `CONTRIBUTING.md`
+- Developer guide: `DEVELOPER.md`
+- Releasing (PyPI / Homebrew / binaries): `docs/releasing.md`
