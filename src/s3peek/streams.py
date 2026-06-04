@@ -64,7 +64,7 @@ class SeekableS3Stream(io.RawIOBase):
         self._pos = max(0, min(self._pos, self._size))
         return self._pos
 
-    def readinto(self, b: bytearray | memoryview) -> int:
+    def readinto(self, b: bytearray | memoryview) -> int:  # type: ignore[override]  # deliberately narrow: io machinery only passes bytearray/memoryview; widening to Buffer buys nothing
         n = len(b)
         data = self._read_range(self._pos, n)
         actual = len(data)

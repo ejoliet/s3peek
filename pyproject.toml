@@ -83,7 +83,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["firefly_client", "tomli"]
+module = ["firefly_client", "tomli", "astropy", "astropy.*", "asdf"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

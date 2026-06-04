@@ -218,6 +218,8 @@ class S3Browser(App[None]):
         # Keep prior table visible — do NOT clear it
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        if event.row_key.value is None:
+            return
         idx = int(event.row_key.value)
         entry = self._entries[idx]
         if entry.is_prefix:
@@ -390,7 +392,7 @@ class S3Browser(App[None]):
         except Exception as exc:
             self.call_from_thread(self._set_status, f"Firefly error: {exc}")
 
-    def action_back(self) -> None:
+    async def action_back(self) -> None:
         if self.history:
             self.prefix = self.history.pop()
         else:

@@ -17,4 +17,11 @@ class BaseReader(Protocol):
     priority: int
 
     def can_read(self, key: str, first_bytes: bytes) -> bool: ...
-    def read(self, data: bytes | io.RawIOBase, *, max_headers: int = 1) -> HeaderResult: ...
+    def read(  # noqa: E501
+        self,
+        data: bytes | io.RawIOBase,
+        *,
+        max_headers: int = 1,
+        deep: bool = False,
+        **_kwargs: object,
+    ) -> HeaderResult: ...
