@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from typing import cast
 
 from s3peek.readers import HeaderResult
 
@@ -72,7 +73,7 @@ class ASDFReader:
                 ignore_unrecognized_tag=True,
                 _force_raw_types=True,
             ) as af:
-                tree = _to_plain(af.tree)  # type: ignore[arg-type]
+                tree = cast("dict[str, object]", _to_plain(af.tree))
         except Exception as exc:
             tree = {"_parse_error": f"{type(exc).__name__}: {exc}"}
         return HeaderResult(format="asdf", headers=[tree])
@@ -83,11 +84,14 @@ def _to_plain(obj: object) -> object:
     # carrying _tag with "ndarray". Detect via tag first — never expand array payload.
     # The __iter__ fallback is intentionally absent: duck-typing iterables caused
     # element-wise recursion over numpy arrays (recursion bomb on large blocks).
-    if getattr(obj, "_tag", None) and "ndarray" in str(obj._tag):
+    tag = getattr(obj, "_tag", None)
+    if tag and "ndarray" in str(tag):
+        mapping = cast("dict[str, object]", obj)
+        shape_raw = mapping.get("shape") or ()
         return {
             "__ndarray__": True,
-            "shape": list(obj.get("shape") or ()),  # type: ignore[union-attr]
-            "dtype": str(obj.get("datatype", "unknown")),  # type: ignore[union-attr]
+            "shape": list(cast("list[object]", shape_raw)),
+            "dtype": str(mapping.get("datatype", "unknown")),
         }
     # AIDEV-NOTE: Defensive guard for live numpy/NDArrayType — only fires if
     # _force_raw_types=True is ever removed or a future code path bypasses it.
@@ -98,7 +102,8 @@ def _to_plain(obj: object) -> object:
             "dtype": str(getattr(obj, "dtype", "unknown")),
         }
     if hasattr(obj, "items"):
-        return {str(k): _to_plain(v) for k, v in obj.items()}  # type: ignore[union-attr]
+        mapping = cast("dict[str, object]", obj)
+        return {str(k): _to_plain(v) for k, v in mapping.items()}
     # TaggedList MRO: TaggedList -> UserList -> list; iteration via UserList.__iter__
     # correctly yields .data contents (confirmed against asdf 5.3.0).
     if isinstance(obj, (list, tuple)):

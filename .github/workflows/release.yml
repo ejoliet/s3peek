@@ -1,9 +1,11 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -27,8 +29,10 @@ jobs:
           path: dist/
 
   publish-testpypi:
+    # Non-blocking dry-run — off the prod critical path (publish-pypi does NOT need this)
     needs: build
     runs-on: ubuntu-latest
+    continue-on-error: true
     environment: testpypi
     permissions:
       id-token: write
@@ -43,12 +47,14 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
   publish-pypi:
-    needs: publish-testpypi
+    # AIDEV-NOTE: needs build directly — does NOT need publish-testpypi (non-blocking dry-run is off critical path)
+    needs: build
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
     steps:
+      # AIDEV-NOTE: download-artifact is mandatory — without it the publish step sees an empty dist/ dir
       - uses: actions/download-artifact@v4
         with:
           name: dist

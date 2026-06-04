@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 from moto import mock_aws
 
-from s3peek.exceptions import AccessDeniedError
 from s3peek.s3 import S3Client
 
 
@@ -58,7 +57,6 @@ def test_list_dir_returns_empty_for_nonexistent_prefix(populated_bucket):
 def test_list_dir_pagination(aws_credentials):
     """Seed >1000 keys; assert all CommonPrefixes returned without truncation."""
     import boto3
-    from moto import mock_aws
 
     with mock_aws():
         s3 = boto3.client("s3", region_name="us-east-1")

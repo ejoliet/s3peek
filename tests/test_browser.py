@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 from s3peek.browser import S3Browser, _fmt_size
@@ -30,7 +30,7 @@ def _fake_client(prefixes=None, objects=None, range_data=b"") -> MagicMock:
     client.stat_object.return_value = ObjectMeta(
         key="obj.fits",
         size=100,
-        last_modified=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        last_modified=datetime(2024, 1, 1, tzinfo=UTC),
         storage_class="STANDARD",
         etag="abc",
     )
@@ -50,7 +50,7 @@ def _obj(key: str, size: int = 512) -> ObjectMeta:
     return ObjectMeta(
         key=key,
         size=size,
-        last_modified=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        last_modified=datetime(2024, 1, 1, tzinfo=UTC),
         storage_class="STANDARD",
         etag="abc",
     )
