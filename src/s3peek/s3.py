@@ -6,6 +6,8 @@ from typing import IO, Any, cast
 from urllib.parse import urlparse
 
 import boto3
+from botocore import UNSIGNED
+from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 
 from s3peek.exceptions import (
@@ -34,16 +36,26 @@ def parse_s3_uri(uri: str) -> tuple[str, str]:
 
 
 class S3Client:
-    def __init__(self, profile: str | None = None, region: str | None = None) -> None:
+    def __init__(
+        self,
+        profile: str | None = None,
+        region: str | None = None,
+        anon: bool = False,
+    ) -> None:
         self._profile = profile
         self._region = region
+        self._anon = anon
         self._s3_client: Any | None = None
 
     @property
     def _s3(self) -> Any:
         if self._s3_client is None:
-            session = boto3.Session(profile_name=self._profile, region_name=self._region)
-            self._s3_client = session.client("s3")
+            # AIDEV-NOTE: anon=True skips SigV4 signing (and any profile) for
+            # public buckets like s3://stpubdata — equivalent of aws --no-sign-request.
+            profile = None if self._anon else self._profile
+            session = boto3.Session(profile_name=profile, region_name=self._region)
+            config = BotoConfig(signature_version=UNSIGNED) if self._anon else None
+            self._s3_client = session.client("s3", config=config)
         return self._s3_client
 
     def list_prefix(
