@@ -59,6 +59,9 @@ s3peek ls s3://my-bucket/data/
 
 # Storage usage summary
 s3peek du s3://my-bucket/data/
+
+# Public bucket, no AWS credentials (like aws --no-sign-request)
+s3peek ls s3://stpubdata/roman/ --no-sign-request   # alias: --anon
 ```
 
 **TUI keybindings:** `↑↓` navigate · `Enter` descend · `Backspace` up · `p` peek · `d` deep-peek · `s` share · `c` copy URI · `f` Firefly · `q` quit

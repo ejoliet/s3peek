@@ -16,8 +16,8 @@ def test_s3_client_hydrates_boto3_client_lazily(monkeypatch: pytest.MonkeyPatch)
         def __init__(self, **kwargs: object) -> None:
             calls.append(("session", kwargs))
 
-        def client(self, service_name: str) -> object:
-            calls.append(("client", service_name))
+        def client(self, service_name: str, config: object = None) -> object:
+            calls.append(("client", service_name, config))
             return SimpleNamespace()
 
     monkeypatch.setattr("s3peek.s3.boto3.Session", FakeSession)
@@ -28,8 +28,15 @@ def test_s3_client_hydrates_boto3_client_lazily(monkeypatch: pytest.MonkeyPatch)
     assert client._s3 is client._s3
     assert calls == [
         ("session", {"profile_name": "science", "region_name": "us-west-2"}),
-        ("client", "s3"),
+        ("client", "s3", None),
     ]
+
+
+def test_s3_client_anon_uses_unsigned_config_and_drops_profile() -> None:
+    from botocore import UNSIGNED
+
+    client = S3Client(profile="science", region="us-east-1", anon=True)
+    assert client._s3.meta.config.signature_version is UNSIGNED
 
 
 def test_parse_s3_uri_valid() -> None:

@@ -17,6 +17,15 @@ from s3peek.s3 import S3Client, parse_s3_uri
 
 app = typer.Typer(name="s3peek", help="Terminal-first S3 browser for scientists.")
 
+NoSignOption = Annotated[
+    bool,
+    typer.Option(
+        "--no-sign-request",
+        "--anon",
+        help="Anonymous access for public buckets (no credentials, unsigned requests)",
+    ),
+]
+
 
 def _mount_plugins() -> None:
     for cmd_app in plugins.load_commands():
@@ -52,6 +61,7 @@ def config_show() -> None:
 @app.command()
 def browse(
     uri: Annotated[str, typer.Argument(help="S3 URI, e.g. s3://bucket/prefix/")],
+    no_sign_request: NoSignOption = False,
 ) -> None:
     """Open interactive TUI browser."""
     from s3peek.browser import S3Browser
@@ -59,7 +69,7 @@ def browse(
     cfg = Config.load()
     bucket, prefix = parse_s3_uri(uri)
     region = cfg.aws_region or "us-east-1"
-    client = S3Client(profile=cfg.aws_profile, region=region)
+    client = S3Client(profile=cfg.aws_profile, region=region, anon=no_sign_request)
     S3Browser(client=client, cfg=cfg, bucket=bucket, prefix=prefix).run()
 
 
@@ -75,6 +85,7 @@ def peek(
         int | None,
         typer.Option("--max-range-bytes", help="Override max bytes for Range-GET fast path"),
     ] = None,
+    no_sign_request: NoSignOption = False,
 ) -> None:
     """Inspect headers of an S3 object or local file."""
     from pathlib import Path
@@ -84,7 +95,7 @@ def peek(
     if uri.startswith("s3://"):
         bucket, key = parse_s3_uri(uri)
         cfg = Config.load()
-        client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
+        client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region, anon=no_sign_request)
         meta = client.stat_object(bucket, key)
         if deep:
             data: bytes | SeekableS3Stream = SeekableS3Stream(
@@ -158,11 +169,14 @@ def ls_command(
     sort: Annotated[str, typer.Option("--sort", help="name|size|date")] = "name",
     filter_glob: Annotated[str | None, typer.Option("--filter", help="Glob pattern")] = None,
     output: Annotated[str, typer.Option("--output", "-o")] = "text",
+    no_sign_request: NoSignOption = False,
 ) -> None:
     """List objects under an S3 prefix."""
     bucket, prefix = parse_s3_uri(uri)
     cfg = Config.load()
-    items = S3Client(profile=cfg.aws_profile, region=cfg.aws_region).list_prefix(
+    items = S3Client(
+        profile=cfg.aws_profile, region=cfg.aws_region, anon=no_sign_request
+    ).list_prefix(
         bucket, prefix, delimiter=""
     )
     if filter_glob:
@@ -193,11 +207,14 @@ def ls_command(
 def du(
     uri: Annotated[str, typer.Argument(help="S3 URI prefix.")],
     human_readable: Annotated[bool, typer.Option("--human-readable", "-h")] = True,
+    no_sign_request: NoSignOption = False,
 ) -> None:
     """Summarize storage usage under an S3 prefix."""
     bucket, prefix = parse_s3_uri(uri)
     cfg = Config.load()
-    result = S3Client(profile=cfg.aws_profile, region=cfg.aws_region).sum_prefix_sizes(
+    result = S3Client(
+        profile=cfg.aws_profile, region=cfg.aws_region, anon=no_sign_request
+    ).sum_prefix_sizes(
         bucket,
         prefix,
     )
@@ -249,10 +266,14 @@ def firefly(
     expiry: Annotated[
         str, typer.Option("--expiry", help="Presigned URL expiry: 1h, 30m, 7d")
     ] = "1h",
+    no_sign_request: NoSignOption = False,
 ) -> None:
     """Send an S3 object to a Firefly visualization server."""
     from s3peek.firefly import FireflyConnector
 
+    if presign and no_sign_request:
+        typer.echo("Error: --presign requires credentials; drop --no-sign-request", err=True)
+        raise typer.Exit(1)
     bucket, key = parse_s3_uri(uri)
     cfg = Config.load()
     server_url = server or cfg.firefly_url
@@ -260,7 +281,7 @@ def firefly(
         typer.echo("Error: --server required or set firefly_url in config", err=True)
         raise typer.Exit(1)
     filename = PurePosixPath(key).name or "object"
-    client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region)
+    client = S3Client(profile=cfg.aws_profile, region=cfg.aws_region, anon=no_sign_request)
     meta = client.stat_object(bucket, key)
     effective_preview = preview if preview is not None else _should_auto_preview(key, meta.size)
     fc = FireflyConnector(

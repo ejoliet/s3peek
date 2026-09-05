@@ -102,6 +102,7 @@ Options:
   --max-hdus INTEGER      Max HDUs to show [default: 1]
   --deep                  Full header via astropy/asdf (streams via Range-GETs)
   --max-range-bytes INT   Override fast-path Range-GET limit
+  --no-sign-request       Anonymous access for public buckets (alias: --anon)
 
 Exit codes: 0=success  1=S3 error  2=format unsupported  3=parse error
 ```
@@ -127,6 +128,10 @@ Options:
   --open-browser   Open Firefly in a browser tab
   --title TEXT     Display title
 ```
+
+`--no-sign-request` / `--anon` is accepted by `browse`, `peek`, `ls`, `du`, and
+`firefly` (not `share` — presigning requires credentials): unsigned requests via
+`botocore.UNSIGNED`, profile ignored. For public buckets (e.g. `s3://stpubdata`).
 
 ---
 

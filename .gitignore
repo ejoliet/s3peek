@@ -9,7 +9,9 @@ htmlcov/
 .ruff_cache/
 .pytest_cache/
 *.spec
+.omc/
 .omx/
+.serena/
 .codex/*
 !.codex/agents/
 !.codex/agents/**
